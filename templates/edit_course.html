@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Edit Course — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><span class="svg-icon icon-courses" aria-hidden="true"></span> Edit Course</h2>
+  <p>Update how your course appears to students.</p>
+</div>
+
+<div style="max-width:700px">
+  <div class="card">
+    <form method="POST" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">Course Title</label>
+        <input type="text" name="title" class="form-control" value="{{ course.title }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="5">{{ course.description }}</textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select name="category" class="form-control">
+            {% for opt in ['Programming','Mathematics','Science','English','History','Art','Business','Other'] %}
+            <option value="{{ opt }}" {% if course.category == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Level</label>
+          <select name="level" class="form-control">
+            {% for opt in ['beginner','intermediate','advanced'] %}
+            <option value="{{ opt }}" {% if course.level == opt %}selected{% endif %}>{{ opt|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Course Thumbnail</label>
+        <input type="file" name="thumbnail_file" class="form-control" accept="image/*">
+        <div class="form-hint">Upload a new cover image to update the course card.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Thumbnail Keyword</label>
+        <input type="text" name="thumbnail" class="form-control" value="{{ course.thumbnail if course.thumbnail and not course.thumbnail.startswith('uploads/') else '' }}" placeholder="Leave blank to use the current image">
+        <div class="form-hint">Use a text label only if you prefer a keyword placeholder instead of an image.</div>
+      </div>
+
+      <div class="flex gap-3">
+        <button type="submit" class="btn btn-primary btn-lg">Save Changes</button>
+        <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-outline btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

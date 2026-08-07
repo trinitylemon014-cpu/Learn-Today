@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Create Account — Learn Together{% endblock %}
+
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-form-wrapper">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-auth">
+          <span>Learn Together</span>
+        </div>
+        <div style="margin-bottom:32px">
+          <h2 style="font-size:28px;margin-bottom:8px;color:var(--navy)">Create Your Account</h2>
+          <p class="subtitle" style="color:var(--gray-600);font-size:15px">Join Learn Together and start your journey</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="role" id="roleInput" value="student">
+
+          <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="name" class="form-control" placeholder="Enter your full name" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control" placeholder="Enter your email" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">I am a…</label>
+            <div class="role-cards">
+              <div class="role-card selected" data-role="student" onclick="selectRole(this)">
+                <div class="role-card-icon role-card-icon-student" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3l8 4-8 4-8-4 8-4Z"></path>
+                    <path d="m4 7 8 4 8-4"></path>
+                    <path d="M4 11l8 4 8-4"></path>
+                    <path d="M4 15l8 4 8-4"></path>
+                  </svg>
+                </div>
+                <div class="role-card-name">Student</div>
+                <div class="role-card-desc">Enroll in courses & learn</div>
+              </div>
+              <div class="role-card" data-role="teacher" onclick="selectRole(this)">
+                <div class="role-card-icon role-card-icon-teacher" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19v-8a2 2 0 0 1 1-1.73L11 3l6 6.27A2 2 0 0 1 18 11v8"></path>
+                    <path d="M9 21v-6h6v6"></path>
+                    <path d="M9 10h6"></path>
+                  </svg>
+                </div>
+                <div class="role-card-name">Teacher</div>
+                <div class="role-card-desc">Create courses & teach</div>
+              </div>
+              <div class="role-card" data-role="parent" onclick="selectRole(this)">
+                <div class="role-card-icon role-card-icon-parent" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                    <path d="M8 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"></path>
+                    <path d="M16 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"></path>
+                    <path d="M4 20a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4"></path>
+                  </svg>
+                </div>
+                <div class="role-card-name">Parent</div>
+                <div class="role-card-desc">Monitor your child</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" id="studentFields">
+            <label class="form-label">Date of Birth</label>
+            <input type="date" name="date_of_birth" class="form-control">
+          </div>
+
+          <div class="form-group" id="studentSchoolField">
+            <label class="form-label">Previous School <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+            <input type="text" name="previous_school" class="form-control" placeholder="Enter previous school if any">
+          </div>
+
+          <div class="form-group" id="studentCoursesField">
+            <label class="form-label">Courses of Interest <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+            <input type="text" name="courses_interest" class="form-control" placeholder="Math, Science, Reading">
+          </div>
+
+          <div class="form-group" id="parentNameField">
+            <label class="form-label">Parent Name <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+            <input type="text" name="parent_name" class="form-control" placeholder="Enter your parent or guardian name">
+          </div>
+
+          <div class="form-group" id="parentEmailField">
+            <label class="form-label">Parent Email <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+            <input type="email" name="parent_email" class="form-control" placeholder="Enter your parent's email (if any)">
+            <div class="form-hint">Link your account to a parent who can monitor your progress</div>
+          </div>
+
+          <div class="form-group" id="teacherCvField" style="display:none">
+            <label class="form-label">Teacher CV</label>
+            <input type="file" name="cv_file" class="form-control">
+            <div class="form-hint">Upload your CV so the admin can review your application</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:12px;font-weight:600">
+            Submit Application
+          </button>
+        </form>
+
+        <div class="auth-footer" style="margin-top:24px;text-align:center;font-size:14px;color:var(--gray-600)">
+          Already have an account? <a href="{{ url_for('login') }}" style="color:var(--blue);font-weight:600;text-decoration:none">Log in</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-image-wrapper">
+      {% if signup_media %}
+        <img src="{{ url_for('static', filename=signup_media.file_path) }}" alt="Learn Together" class="auth-image">
+      {% else %}
+        <img src="{{ url_for('static', filename='videos/kk.jpg') }}" alt="Learn Together" class="auth-image">
+      {% endif %}
+      <div class="auth-image-overlay">
+        <div class="auth-image-text">
+          <h3>Start with confidence</h3>
+          <p>Build learning pathways, connect with peers, and manage progress in one unified platform.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectRole(el) {
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('roleInput').value = el.dataset.role;
+  const role = el.dataset.role;
+  document.getElementById('parentEmailField').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('parentNameField').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('studentSchoolField').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('studentCoursesField').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('teacherCvField').style.display = role === 'teacher' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

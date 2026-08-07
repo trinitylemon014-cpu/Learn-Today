@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block title %}Media Management — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Website Media Management</h2>
+    <p>Update images and videos across the platform</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<!-- Login Image Section -->
+<div class="card" style="margin-bottom:24px">
+  <h3 style="color:var(--navy);margin-bottom:16px">Login & Password Setup Page Image</h3>
+  <p style="color:var(--gray-600);margin-bottom:16px">Used on login, setup-password, and parent-setup-password pages</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-bottom:24px">
+    {% set login_images = media|selectattr('media_type','eq','login_image')|list %}
+    {% if login_images %}
+      {% for media_item in login_images %}
+      <div class="card" style="background:var(--gray-50);padding:12px;border:1px solid var(--gray-200)">
+        <div style="width:100%;height:200px;background:var(--gray-200);border-radius:6px;overflow:hidden;margin-bottom:12px">
+          <img src="{{ url_for('static', filename=media_item.file_path) }}" alt="Login image" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        {% if media_item.title %}
+          <p style="margin:0;font-weight:600;color:var(--navy);margin-bottom:4px">{{ media_item.title }}</p>
+        {% endif %}
+        <p style="margin:0;font-size:12px;color:var(--gray-500);margin-bottom:8px">Uploaded {{ media_item.uploaded_at.strftime('%b %d, %Y') }}</p>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          {% if not media_item.is_active %}
+          <form method="POST" action="{{ url_for('admin_media_activate', media_id=media_item.id) }}" style="display:inline">
+            <button class="btn btn-success btn-sm">✓ Set as Active</button>
+          </form>
+          {% else %}
+          <span class="badge badge-green">Active</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('admin_media_delete', media_id=media_item.id) }}" style="display:inline;margin-left:auto" onsubmit="return confirm('Delete this image?')">
+            <button class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray-500);background:var(--gray-50);border-radius:8px">
+      <p style="font-size:48px;margin-bottom:8px"></p>
+      <p>No images uploaded yet</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="POST" action="{{ url_for('admin_media_upload') }}" enctype="multipart/form-data" style="border-top:1px solid var(--gray-200);padding-top:16px">
+    <input type="hidden" name="media_type" value="login_image">
+    
+    <div class="flex gap-2" style="flex-direction:column">
+      <div class="form-group">
+        <label class="form-label">Image Title (Optional)</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g., Learning Platform Hero">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Upload Image</label>
+        <input type="file" name="file" class="form-control" accept="image/*" required>
+        <small style="color:var(--gray-500);margin-top:4px;display:block">Recommended: 1600x900px or larger (16:9 aspect ratio). PNG, JPG, WEBP, or AVIF</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Upload Login Image</button>
+    </div>
+  </form>
+</div>
+
+<!-- Signup Image Section -->
+<div class="card" style="margin-bottom:24px">
+  <h3 style="color:var(--navy);margin-bottom:16px">Sign Up Page Image</h3>
+  <p style="color:var(--gray-600);margin-bottom:16px">Used on the registration/sign-up page</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-bottom:24px">
+    {% set signup_images = media|selectattr('media_type','eq','signup_image')|list %}
+    {% if signup_images %}
+      {% for media_item in signup_images %}
+      <div class="card" style="background:var(--gray-50);padding:12px;border:1px solid var(--gray-200)">
+        <div style="width:100%;height:200px;background:var(--gray-200);border-radius:6px;overflow:hidden;margin-bottom:12px">
+          <img src="{{ url_for('static', filename=media_item.file_path) }}" alt="Signup image" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        {% if media_item.title %}
+          <p style="margin:0;font-weight:600;color:var(--navy);margin-bottom:4px">{{ media_item.title }}</p>
+        {% endif %}
+        <p style="margin:0;font-size:12px;color:var(--gray-500);margin-bottom:8px">Uploaded {{ media_item.uploaded_at.strftime('%b %d, %Y') }}</p>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          {% if not media_item.is_active %}
+          <form method="POST" action="{{ url_for('admin_media_activate', media_id=media_item.id) }}" style="display:inline">
+            <button class="btn btn-success btn-sm">✓ Set as Active</button>
+          </form>
+          {% else %}
+          <span class="badge badge-green">Active</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('admin_media_delete', media_id=media_item.id) }}" style="display:inline;margin-left:auto" onsubmit="return confirm('Delete this image?')">
+            <button class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray-500);background:var(--gray-50);border-radius:8px">
+      <p style="font-size:48px;margin-bottom:8px"></p>
+      <p>No images uploaded yet</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="POST" action="{{ url_for('admin_media_upload') }}" enctype="multipart/form-data" style="border-top:1px solid var(--gray-200);padding-top:16px">
+    <input type="hidden" name="media_type" value="signup_image">
+    
+    <div class="flex gap-2" style="flex-direction:column">
+      <div class="form-group">
+        <label class="form-label">Image Title (Optional)</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g., Students Collaborating">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Upload Image</label>
+        <input type="file" name="file" class="form-control" accept="image/*" required>
+        <small style="color:var(--gray-500);margin-top:4px;display:block">Recommended: 1600x900px or larger (16:9 aspect ratio). PNG, JPG, WEBP, or AVIF</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Upload Sign Up Image</button>
+    </div>
+  </form>
+</div>
+
+<!-- Landing Page Video Section -->
+<div class="card">
+  <h3 style="color:var(--navy);margin-bottom:16px">Landing Page Video</h3>
+  <p style="color:var(--gray-600);margin-bottom:16px">Featured video on the landing page to showcase the platform</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:24px">
+    {% set landing_videos = media|selectattr('media_type','eq','landing_video')|list %}
+    {% if landing_videos %}
+      {% for media_item in landing_videos %}
+      <div class="card" style="background:var(--gray-50);padding:12px;border:1px solid var(--gray-200)">
+        <div style="width:100%;height:200px;background:var(--gray-200);border-radius:6px;overflow:hidden;margin-bottom:12px;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:40px"></span>
+        </div>
+        {% if media_item.title %}
+          <p style="margin:0;font-weight:600;color:var(--navy);margin-bottom:4px;word-break:break-word">{{ media_item.title }}</p>
+        {% endif %}
+        {% if media_item.description %}
+          <p style="margin:0;font-size:13px;color:var(--gray-600);margin-bottom:8px">{{ media_item.description }}</p>
+        {% endif %}
+        <p style="margin:0;font-size:12px;color:var(--gray-500);margin-bottom:8px">Uploaded {{ media_item.uploaded_at.strftime('%b %d, %Y') }}</p>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          {% if not media_item.is_active %}
+          <form method="POST" action="{{ url_for('admin_media_activate', media_id=media_item.id) }}" style="display:inline">
+            <button class="btn btn-success btn-sm">✓ Set as Active</button>
+          </form>
+          {% else %}
+          <span class="badge badge-green">Active</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('admin_media_delete', media_id=media_item.id) }}" style="display:inline;margin-left:auto" onsubmit="return confirm('Delete this video?')">
+            <button class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray-500);background:var(--gray-50);border-radius:8px">
+      <p style="font-size:48px;margin-bottom:8px"></p>
+      <p>No videos uploaded yet</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="POST" action="{{ url_for('admin_media_upload') }}" enctype="multipart/form-data" style="border-top:1px solid var(--gray-200);padding-top:16px">
+    <input type="hidden" name="media_type" value="landing_video">
+    
+    <div class="flex gap-2" style="flex-direction:column">
+      <div class="form-group">
+        <label class="form-label">Video Title (Optional)</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g., Learn Together Platform Demo">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Video Description (Optional)</label>
+        <textarea name="description" class="form-control" placeholder="Describe what this video shows..." rows="3"></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Upload Video</label>
+        <input type="file" name="file" class="form-control" accept="video/*" required>
+        <small style="color:var(--gray-500);margin-top:4px;display:block">MP4, WebM, or MOV format. Recommended: 1920x1080 or 1280x720. Max 100MB</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Upload Landing Video</button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .badge-green {
+    background: var(--green-100);
+    color: var(--green-800);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .card {
+      padding: 16px;
+    }
+
+    h3 {
+      font-size: 20px;
+    }
+  }
+</style>
+{% endblock %}

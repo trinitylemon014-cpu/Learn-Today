@@ -1,0 +1,202 @@
+{% set is_public_page = request.endpoint in ['index', 'login', 'register'] %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Learn Together{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='videos/logo.png') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+{% if current_user and not is_public_page %}
+<!-- ════ AUTHENTICATED LAYOUT ════ -->
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand-badge">
+        <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-sidebar">
+      </div>
+      <span class="sidebar-logo-text">Learn<span>Together</span></span>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-avatar">
+        {% if current_user.avatar %}
+          <img src="{{ url_for('static', filename=current_user.avatar) }}" alt="avatar">
+        {% else %}
+          {{ current_user.name[0].upper() }}
+        {% endif %}
+      </div>
+      <div>
+        <div class="user-info-name">{{ current_user.name }}</div>
+        <div class="user-info-role">{{ current_user.role }}</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
+        <span class="nav-icon svg-icon icon-dashboard" aria-hidden="true"></span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="{{ url_for('courses') }}" class="nav-item {% if 'course' in request.endpoint %}active{% endif %}" title="Courses">
+        <span class="nav-icon svg-icon icon-courses" aria-hidden="true"></span>
+        <span class="nav-label">Courses</span>
+      </a>
+      <a href="{{ url_for('groups') }}" class="nav-item {% if 'group' in request.endpoint %}active{% endif %}" title="Groups">
+        <span class="nav-icon svg-icon icon-groups" aria-hidden="true"></span>
+        <span class="nav-label">Groups</span>
+      </a>
+
+      {% if current_user.role == 'teacher' %}
+      <div class="nav-section-label">Teaching</div>
+      <a href="{{ url_for('create_course') }}" class="nav-item" title="New Course">
+        <span class="nav-icon svg-icon icon-add" aria-hidden="true"></span>
+        <span class="nav-label">New Course</span>
+      </a>
+      {% if current_user.courses_taught %}
+      <a href="{{ url_for('analytics', course_id=current_user.courses_taught[0].id) }}" class="nav-item {% if request.endpoint == 'analytics' %}active{% endif %}" title="Analytics">
+        <span class="nav-icon svg-icon icon-analytics" aria-hidden="true"></span>
+        <span class="nav-label">Analytics</span>
+      </a>
+      <a href="{{ url_for('attendance', course_id=current_user.courses_taught[0].id) }}" class="nav-item {% if request.endpoint == 'attendance' %}active{% endif %}" title="Attendance">
+        <span class="nav-icon svg-icon icon-attendance" aria-hidden="true"></span>
+        <span class="nav-label">Attendance</span>
+      </a>
+      {% endif %}
+      {% endif %}
+
+      {% if current_user.role == 'parent' %}
+      <div class="nav-section-label">My Children</div>
+      {% endif %}
+
+      {% if current_user.role == 'admin' %}
+      <div class="nav-section-label">Admin</div>
+      <a href="{{ url_for('admin_users') }}" class="nav-item" title="Users">
+        <span class="nav-icon svg-icon icon-users" aria-hidden="true"></span>
+        <span class="nav-label">Users</span>
+      </a>
+      <a href="{{ url_for('admin_courses') }}" class="nav-item" title="All Courses">
+        <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
+        <span class="nav-label">All Courses</span>
+      </a>
+      <a href="{{ url_for('admin_application_page') }}" class="nav-item {% if request.endpoint == 'admin_application_page' %}active{% endif %}" title="Application Page">
+        <span class="nav-icon svg-icon icon-layout" aria-hidden="true"></span>
+        <span class="nav-label">Application Page</span>
+      </a>
+      <a href="{{ url_for('admin_applications') }}" class="nav-item {% if request.endpoint == 'admin_applications' or request.endpoint == 'admin_application_detail' %}active{% endif %}" title="Applications">
+        <span class="nav-icon svg-icon icon-file" aria-hidden="true"></span>
+        <span class="nav-label">Applications</span>
+      </a>
+      <a href="{{ url_for('admin_media') }}" class="nav-item {% if request.endpoint == 'admin_media' %}active{% endif %}" title="Media">
+        <span class="nav-icon svg-icon icon-image" aria-hidden="true"></span>
+        <span class="nav-label">Media</span>
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="{{ url_for('profile') }}" class="nav-item" title="Profile">
+        <span class="nav-icon svg-icon icon-profile" aria-hidden="true"></span>
+        <span class="nav-label">Profile</span>
+      </a>
+      <a href="{{ url_for('logout') }}" class="nav-item" title="Logout">
+        <span class="nav-icon svg-icon icon-logout" aria-hidden="true"></span>
+        <span class="nav-label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="topbar-btn" id="sidebarToggle" aria-label="Open navigation">
+          <span class="svg-icon icon-menu" aria-hidden="true"></span>
+        </button>
+        <button class="topbar-btn" id="sidebarCollapse" aria-label="Compact navigation">
+          <span class="svg-icon icon-arrow-left" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="topbar-search">
+        <span class="topbar-search-icon svg-icon icon-search" aria-hidden="true"></span>
+        <input type="text" placeholder="Search courses, groups…">
+      </div>
+      <div class="topbar-actions">
+        <a href="{{ url_for('notifications') }}" class="topbar-btn" aria-label="Notifications">
+          <span class="svg-icon icon-bell" aria-hidden="true"></span>
+          {% if unread_notification_count %}
+          <span class="topbar-badge">{{ unread_notification_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{{ url_for('calendar_view') }}" class="topbar-btn" aria-label="Calendar">
+          <span class="svg-icon icon-calendar" aria-hidden="true"></span>
+        </a>
+        <div class="topbar-user">
+            <div class="user-avatar">
+              {% if current_user.avatar %}
+                <img src="{{ url_for('static', filename=current_user.avatar) }}" alt="avatar">
+              {% else %}
+                {{ current_user.name[0].upper() }}
+              {% endif %}
+            </div>
+            <div>
+              <div class="topbar-user-name">{{ current_user.name }}</div>
+              <div class="topbar-user-role">{{ current_user.role }}</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+    <!-- Flash messages -->
+    <div class="flash-messages-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">
+            <span class="svg-icon {{ 'icon-success' if category == 'success' else 'icon-error' if category == 'error' else 'icon-info' }}" aria-hidden="true"></span>
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <div class="page-content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+{% else %}
+<!-- ════ PUBLIC LAYOUT ════ -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="public-flash-wrap">
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% block public_content %}{% endblock %}
+{% endif %}
+
+<div id="sidebarOverlay"></div>
+
+<script>
+  window.LearnTogether = window.LearnTogether || {};
+  window.LearnTogether.currentUserId = {{ current_user.id if current_user else 'null' }};
+  window.LearnTogether.userGroupIds = {{ user_group_ids|tojson }};
+  window.LearnTogether.currentUserName = {{ current_user.name|tojson if current_user else 'null' }};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

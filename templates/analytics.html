@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+{% block title %}Analytics — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('dashboard') }}" style="color:var(--blue)">Dashboard</a>
+  <span>›</span>
+  <a href="{{ url_for('course_detail', course_id=course.id) }}" style="color:var(--blue)">{{ course.title }}</a>
+  <span>›</span>
+  <span>Analytics</span>
+</div>
+
+<div class="page-header flex-between">
+  <div>
+    <h2><span class="svg-icon icon-analytics" aria-hidden="true"></span> Analytics — {{ course.title }}</h2>
+    <p>Track student performance and engagement</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('attendance', course_id=course.id) }}" class="btn btn-outline btn-sm"><span class="svg-icon icon-attendance" aria-hidden="true"></span> Attendance</a>
+    <a href="{{ url_for('add_content', course_id=course.id) }}" class="btn btn-primary btn-sm"><span class="svg-icon icon-add" aria-hidden="true"></span> Add Content</a>
+  </div>
+</div>
+
+<!-- Overview Stats -->
+<div class="stats-grid" style="margin-bottom:28px">
+  <div class="stat-card">
+    <div class="stat-card-icon blue"><span class="svg-icon icon-analytics" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ avg_progress }}%</div>
+    <div class="stat-label">Average Progress</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon green"><span class="svg-icon icon-success" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ completion_rate }}%</div>
+    <div class="stat-label">Completion Rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon purple"><span class="svg-icon icon-analytics" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ active_students }}</div>
+    <div class="stat-label">Active Students</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon orange"><span class="svg-icon icon-users" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ total_students }}</div>
+    <div class="stat-label">Total Students</div>
+  </div>
+</div>
+
+<div class="grid-3-1">
+  <!-- Main: Student Table -->
+  <div>
+    <div class="card">
+      <!-- Visual Progress Chart -->
+      <div style="margin-bottom:28px">
+        <h4 style="margin-bottom:16px">Progress Overview</h4>
+        <div class="chart-bars">
+          {% for d in progress_data %}
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:{{ d.progress }}%;background:{% if d.progress >= 75 %}linear-gradient(180deg,var(--green),#059669){% elif d.progress >= 40 %}linear-gradient(180deg,var(--blue),var(--navy-mid)){% else %}linear-gradient(180deg,var(--gray-300),var(--gray-400)){% endif %}"
+                 title="{{ d.student.name }}: {{ d.progress }}%"></div>
+            <div class="chart-bar-label" style="font-size:10px;max-width:40px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.student.name.split()[0] }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="flex gap-3" style="margin-top:10px">
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray-500)"><span style="width:10px;height:10px;background:var(--green);border-radius:2px;display:inline-block"></span>≥75%</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray-500)"><span style="width:10px;height:10px;background:var(--blue);border-radius:2px;display:inline-block"></span>40-74%</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray-500)"><span style="width:10px;height:10px;background:var(--gray-300);border-radius:2px;display:inline-block"></span>&lt;40%</span>
+        </div>
+      </div>
+
+      <h4 style="margin-bottom:14px">Student Performance</h4>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Student</th>
+              <th>Progress</th>
+              <th>Activity</th>
+              <th>Attendance</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in progress_data|sort(attribute='progress', reverse=True) %}
+            <tr>
+              <td style="color:var(--gray-400)">{{ loop.index }}</td>
+              <td>
+                <div class="flex gap-2" style="align-items:center">
+                  <div class="user-avatar" style="width:28px;height:28px;font-size:11px">{{ d.student.name[0].upper() }}</div>
+                  <strong>{{ d.student.name }}</strong>
+                </div>
+              </td>
+              <td>
+                <div class="flex gap-2" style="align-items:center;min-width:120px">
+                  <div class="progress-wrap" style="flex:1">
+                    <div class="progress-bar {% if d.progress >= 75 %}{% elif d.progress >= 40 %}blue{% else %}purple{% endif %}"
+                         style="width:{{ d.progress }}%"></div>
+                  </div>
+                  <span style="font-weight:700;font-size:13px;color:var(--navy);min-width:32px">{{ d.progress }}%</span>
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-{{ 'green' if d.activity > 5 else 'blue' if d.activity > 0 else 'gray' }}">
+                  {{ d.activity }} actions
+                </span>
+              </td>
+              <td>
+                <span class="badge badge-{{ 'green' if d.attendance >= 80 else 'orange' if d.attendance >= 50 else 'red' }}">
+                  {{ d.attendance }}%
+                </span>
+              </td>
+              <td>
+                <span class="badge badge-{{ 'green' if d.progress >= 70 else 'blue' if d.progress >= 30 else 'gray' }}">
+                  {{ 'Advanced' if d.progress >= 70 else 'On Track' if d.progress >= 30 else 'Needs Help' }}
+                </span>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:30px">No students enrolled yet</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- Top Performers -->
+    <div class="card">
+      <h5 style="margin-bottom:14px"> Top Performers</h5>
+      {% for d in progress_data|sort(attribute='progress', reverse=True)|list %}
+      {% if loop.index <= 5 %}
+      <div class="flex-between" style="padding:8px 0;border-bottom:1px solid var(--gray-100)">
+        <div class="flex gap-2" style="align-items:center">
+          <span style="font-weight:800;color:{% if loop.index == 1 %}#F59E0B{% elif loop.index == 2 %}#94A3B8{% elif loop.index == 3 %}#CD7C2F{% else %}var(--gray-400){% endif %};font-size:13px;min-width:18px">{{ loop.index }}.</span>
+          <div class="user-avatar" style="width:26px;height:26px;font-size:10px">{{ d.student.name[0].upper() }}</div>
+          <span style="font-size:13px;font-weight:600;color:var(--navy)">{{ d.student.name.split()[0] }}</span>
+        </div>
+        <span style="font-weight:800;color:var(--green);font-size:13px">{{ d.progress }}%</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Needs Attention -->
+    <div class="card" style="border-top:3px solid var(--warning)">
+      <h5 style="margin-bottom:14px;color:var(--warning)"> Needs Attention</h5>
+      {% set low = progress_data|selectattr('progress', 'lt', 40)|list %}
+      {% if low %}
+      {% for d in low %}
+      <div class="flex-between" style="padding:7px 0;border-bottom:1px solid var(--gray-100)">
+        <span style="font-size:13px;color:var(--gray-700)">{{ d.student.name }}</span>
+        <span class="badge badge-red">{{ d.progress }}%</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="font-size:13px;color:var(--green)">All students are on track.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h5 style="margin-bottom:12px"><span class="svg-icon icon-courses-list" aria-hidden="true"></span> Lesson History</h5>
+      {% if lessons %}
+        {% for lesson in lessons %}
+        <div style="padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <div style="font-weight:700;color:var(--navy)">{{ lesson.title }}</div>
+          <div style="font-size:12px;color:var(--gray-500)">{{ lesson.scheduled_at.strftime('%b %d, %Y %I:%M %p') }} · {{ lesson.status|capitalize }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted text-sm">No lesson history yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card">
+      <h5 style="margin-bottom:12px"><span class="svg-icon icon-success" aria-hidden="true"></span> Quick Actions</h5>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <a href="{{ url_for('attendance', course_id=course.id) }}" class="btn btn-outline btn-sm btn-block"><span class="svg-icon icon-attendance" aria-hidden="true"></span> View Attendance</a>
+        <a href="{{ url_for('add_content', course_id=course.id) }}" class="btn btn-primary btn-sm btn-block"><span class="svg-icon icon-add" aria-hidden="true"></span> Add Content</a>
+        <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-outline btn-sm btn-block"><span class="svg-icon icon-courses" aria-hidden="true"></span> Course Details</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

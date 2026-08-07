@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Notifications</h2>
+    <p>Stay on top of unread updates and follow-up tasks.</p>
+  </div>
+</div>
+
+<div class="notification-shell">
+  <div class="notification-list">
+    {% for item in notifications %}
+    <a href="{{ url_for('notifications', notification_id=item.id) }}" class="notification-item {% if selected and item.id == selected.id %}active{% endif %} {% if item.unread %}unread{% endif %}">
+      <div class="flex-between" style="gap:12px; align-items:flex-start;">
+        <div>
+          <div class="notification-title">{{ item.title }}</div>
+          <div class="notification-text" style="font-size:13px; line-height:1.5;">{{ item.body }}</div>
+        </div>
+        {% if item.unread %}
+        <span class="badge badge-blue">Unread</span>
+        {% else %}
+        <span class="badge badge-green">Seen</span>
+        {% endif %}
+      </div>
+      <div class="notification-meta">{{ item.channel }} • {{ item.time }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="notification-detail">
+    {% if selected %}
+    <span class="badge badge-purple">{{ selected['kind']|title }}</span>
+    <h3>{{ selected['title'] }}</h3>
+    <p>{{ selected['body'] }}</p>
+    {% if selected['reminder_for'] %}
+    <p><strong>Reminder:</strong> {{ selected['reminder_for'] }}</p>
+    {% endif %}
+    {% if selected['link'] %}
+    <a href="{{ selected['link'] }}" class="btn btn-primary btn-sm">Open related page</a>
+    {% endif %}
+    <div class="card-sm" style="background:var(--gray-50); border:1px solid var(--gray-200); margin-top:12px;">
+      <strong>What you can do next</strong>
+      <ul style="margin-top:8px; padding-left: 18px; color:var(--gray-600);">
+        <li>Review the linked course, group, or attendance page.</li>
+        <li>Use the reminder to stay on top of deadlines.</li>
+        <li>Once you’ve handled it, the unread count will drop to zero.</li>
+      </ul>
+    </div>
+    {% else %}
+    <p>No notifications yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

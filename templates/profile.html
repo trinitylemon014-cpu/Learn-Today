@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Profile — Learn Together{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2> My Profile</h2>
+  <p>Manage your account settings</p>
+</div>
+
+<div style="max-width:620px">
+  <div class="card" style="margin-bottom:20px">
+    <!-- Avatar header -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--gray-200)">
+      <div class="user-avatar" style="width:68px;height:68px;font-size:28px">
+        {% if user.avatar %}
+          <img src="{{ url_for('static', filename=user.avatar) }}" alt="avatar">
+        {% else %}
+          {{ user.name[0].upper() }}
+        {% endif %}
+      </div>
+      <div>
+        <h3 style="margin-bottom:4px">{{ user.name }}</h3>
+        <div class="flex gap-2">
+          <span class="badge badge-{{ 'blue' if user.role == 'student' else 'green' if user.role == 'teacher' else 'purple' if user.role == 'parent' else 'orange' }}">{{ user.role|capitalize }}</span>
+          <span style="font-size:12.5px;color:var(--gray-400)">Member since {{ user.created_at.strftime('%B %Y') }}</span>
+        </div>
+      </div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label"> Profile Picture <span style="font-weight:400;color:var(--gray-400)">(Optional)</span></label>
+        <input type="file" name="avatar" accept="image/*" class="form-control">
+        {% if user.avatar %}
+        <div style="margin-top:8px">
+          <img src="{{ url_for('static', filename=user.avatar) }}" style="width:80px;height:80px;border-radius:9999px;object-fit:cover;display:block">
+        </div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label"> Full Name</label>
+        <input type="text" name="name" class="form-control" value="{{ user.name }}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label"> Email Address</label>
+        <input type="email" class="form-control" value="{{ user.email }}" disabled style="background:var(--gray-100);color:var(--gray-500)">
+        <div class="form-hint">Email cannot be changed</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label"> Role</label>
+        <input type="text" class="form-control" value="{{ user.role|capitalize }}" disabled style="background:var(--gray-100);color:var(--gray-500)">
+      </div>
+
+      {% if user.role == 'student' %}
+      <div class="form-group" style="padding:16px;background:var(--purple-bg);border-radius:var(--r-md);border:1px solid rgba(124,58,237,.2)">
+        <label class="form-label" style="color:var(--purple)"> Parent Email <span style="font-weight:400;color:var(--gray-400)">(Optional)</span></label>
+        <input type="email" name="parent_email" class="form-control" value="{{ user.parent_email or '' }}" placeholder="Enter your parent's email">
+        <div class="form-hint">Link your account so your parent can monitor your progress</div>
+        {% if user.parent_id %}
+        <div style="margin-top:8px" class="badge badge-green">✓ Parent account linked</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+
+  <!-- Stats Card -->
+  <div class="card" style="background:linear-gradient(135deg,var(--navy),var(--navy-mid))">
+    <h5 style="color:white;margin-bottom:14px">Account Stats</h5>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      {% if user.role == 'student' %}
+        {% set enroll_count = user.enrollments|length %}
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ enroll_count }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Courses Enrolled</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.activity_logs|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Activities Logged</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.sent_messages|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Messages Sent</div>
+        </div>
+      {% elif user.role == 'teacher' %}
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.courses_taught|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Courses Created</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.courses_taught|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Courses Created</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.sent_messages|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Messages Sent</div>
+        </div>
+      {% else %}
+        <div style="text-align:center">
+          <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;color:var(--green-light)">{{ user.sent_messages|length }}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55)">Messages Sent</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

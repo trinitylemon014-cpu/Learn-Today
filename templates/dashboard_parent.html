@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Parent Dashboard — Learn Together{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+  <div class="welcome-text">
+    <h3>Welcome back, {{ current_user.name }}!</h3>
+    <p>Here's your child's learning overview.</p>
+  </div>
+</div>
+
+{% if student_data %}
+{% for data in student_data %}
+{% set student = data.user %}
+<div class="card" style="margin-bottom:24px">
+  <div class="flex-between mb-4">
+    <div class="flex gap-3" style="align-items:center">
+      <div style="width:50px;height:50px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:var(--r-full);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:20px">
+        {{ student.name[0].upper() }}
+      </div>
+      <div>
+        <h4 style="margin-bottom:2px">{{ student.name }}</h4>
+        <span class="badge badge-blue">Student</span>
+      </div>
+    </div>
+    <a href="{{ url_for('parent_student_detail', student_id=student.id) }}" class="btn btn-primary btn-sm">View Full Report →</a>
+  </div>
+
+  <div class="stats-grid" style="margin-bottom:20px">
+    <div class="stat-card">
+      <div class="stat-card-icon blue"><span class="svg-icon icon-analytics" aria-hidden="true"></span></div>
+      <div class="stat-value">{{ data.avg_progress }}%</div>
+      <div class="stat-label">Overall Progress</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-icon green"><span class="svg-icon icon-courses" aria-hidden="true"></span></div>
+      <div class="stat-value">{{ data.courses }}</div>
+      <div class="stat-label">Courses Enrolled</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-icon purple"><span class="svg-icon icon-calendar" aria-hidden="true"></span></div>
+      <div class="stat-value">{{ data.att_rate }}%</div>
+      <div class="stat-label">Attendance Rate</div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card empty-state">
+  <span class="svg-icon icon-parent icon-xl" aria-hidden="true"></span>
+  <h4>No linked students</h4>
+  <p>Your child needs to enter your email during registration or profile setup to link accounts.</p>
+  <div class="alert alert-info" style="margin-top:16px;text-align:left">
+    <span class="svg-icon icon-info" aria-hidden="true"></span>
+    <div>Your email: <strong>{{ current_user.email }}</strong><br>
+    Ask your child to add this email in their Profile Settings under "Parent Email"</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

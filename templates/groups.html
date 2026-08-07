@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Groups — Learn Together{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2><span class="svg-icon icon-groups" aria-hidden="true"></span> Discussion Groups</h2>
+    <p>Join groups to collaborate and learn together</p>
+  </div>
+  <a href="{{ url_for('create_group') }}" class="btn btn-purple"><span class="svg-icon icon-add" aria-hidden="true"></span> Create Group</a>
+</div>
+
+{% if my_groups %}
+<h4 class="section-subtitle">My Groups</h4>
+<div class="groups-grid">
+  {% for g in my_groups %}
+  {% set group_identity = identity_for_group(g) %}
+  <a href="{{ url_for('group_detail', group_id=g.id) }}" class="card group-card" data-unread-group-id="{{ g.id }}">
+    <div class="group-card-row">
+      <div class="group-avatar-sm" style="background: linear-gradient(135deg, {{ group_identity.color }}, var(--navy));">
+        {% if group_identity.avatar_url %}
+        <img src="{{ group_identity.avatar_url }}" alt="{{ g.name }} avatar">
+        {% else %}
+        <span class="font-bold" style="letter-spacing:.04em">{{ group_identity.initials }}</span>
+        {% endif %}
+      </div>
+      <div class="group-info">
+        <div class="group-title-row">
+          <div class="group-title">{{ g.name }}</div>
+          <span class="chat-unread-badge" hidden></span>
+        </div>
+        <div class="group-meta">{{ g.members|length }} members · {{ g.group_type|capitalize }} group</div>
+      </div>
+      <span class="badge badge-{{ 'blue' if g.group_type == 'course' else 'green' if g.group_type == 'teacher' else 'purple' }}">{{ g.group_type }}</span>
+    </div>
+    {% if g.description %}
+    <p class="group-description">{{ g.description[:80] + '…' if g.description|length > 80 else g.description }}</p>
+    {% endif %}
+    <div class="group-card-footer">
+      <span class="text-xs text-muted">Created by {{ g.creator.name }}</span>
+      <span class="group-action-label">Open Chat →</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if public_groups %}
+<h4 class="section-subtitle">Discover Groups</h4>
+<div class="groups-grid">
+  {% for g in public_groups %}
+  {% set group_identity = identity_for_group(g) %}
+  <div class="card group-card">
+    <div class="group-card-row group-card-header">
+      <div class="group-avatar-sm" style="background: linear-gradient(135deg, {{ group_identity.color }}, var(--navy));">
+        {% if group_identity.avatar_url %}
+        <img src="{{ group_identity.avatar_url }}" alt="{{ g.name }} avatar">
+        {% else %}
+        <span class="font-bold group-avatar-letters">{{ group_identity.initials }}</span>
+        {% endif %}
+      </div>
+      <div class="group-info">
+        <div class="group-title">{{ g.name }}</div>
+        <div class="group-meta">{{ g.members|length }} members</div>
+      </div>
+      <span class="badge badge-{{ 'blue' if g.group_type == 'course' else 'green' if g.group_type == 'teacher' else 'purple' }}">{{ g.group_type }}</span>
+    </div>
+    {% if g.description %}
+    <p class="group-description">{{ g.description[:70] + '…' if g.description|length > 70 else g.description }}</p>
+    {% endif %}
+    <div class="flex gap-2">
+      <form method="POST" action="{{ url_for('join_group', group_id=g.id) }}" class="flex-1">
+        <button class="btn btn-outline btn-sm btn-block">Join Group</button>
+      </form>
+      <a href="{{ url_for('group_detail', group_id=g.id) }}" class="btn btn-primary btn-sm">View →</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not my_groups and not public_groups %}
+<div class="card empty-state">
+  <span class="svg-icon icon-groups icon-xl" aria-hidden="true"></span>
+  <h4>No groups yet</h4>
+  <p>Create your first group to start collaborating with others!</p>
+  <a href="{{ url_for('create_group') }}" class="btn btn-purple mt-4">Create Group</a>
+</div>
+{% endif %}
+{% endblock %}

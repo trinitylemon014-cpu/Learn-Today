@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Log In — Learn Together{% endblock %}
+
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-form-wrapper">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-auth">
+          <span>Learn Together</span>
+        </div>
+        <div style="margin-bottom:32px">
+          <h2 style="font-size:28px;margin-bottom:8px;color:var(--navy)">Welcome Back</h2>
+          <p class="subtitle" style="color:var(--gray-600);font-size:15px">Sign in to continue your learning journey</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST">
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control" placeholder="name@example.com" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" placeholder="Enter your password" required>
+            <div style="text-align:right;margin-top:6px;font-size:13px">
+              <a href="{{ url_for('forgot_password') }}" style="color:var(--blue);text-decoration:none">Forgot password?</a>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:12px;font-weight:600">
+            Sign In
+          </button>
+        </form>
+
+        <div class="auth-footer" style="margin-top:24px;text-align:center;font-size:14px;color:var(--gray-600)">
+          Don't have an account? <a href="{{ url_for('register') }}" style="color:var(--blue);font-weight:600;text-decoration:none">Create free account</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-image-wrapper">
+      {% if login_media %}
+        <img src="{{ url_for('static', filename=login_media.file_path) }}" alt="Learn Together Platform" class="auth-image">
+      {% else %}
+        <img src="{{ url_for('static', filename='videos/lms.avif') }}" alt="Learn Together Platform" class="auth-image">
+      {% endif %}
+      <div class="auth-image-overlay">
+        <div class="auth-image-text">
+          <h3>Ready to grow?</h3>
+          <p>Join thousands of students and teachers learning together</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

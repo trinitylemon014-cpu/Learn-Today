@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Manage Applications — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Application Management</h2>
+    <p>Review student, teacher, and parent applications</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="card">
+  <!-- Filter Bar -->
+  <div class="flex gap-2" style="margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-primary btn-sm" onclick="filterApps('all')">All ({{ applications|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterApps('pending')">Pending ({{ applications|selectattr('status','eq','pending')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterApps('approved')">Approved ({{ applications|selectattr('status','eq','approved')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterApps('denied')">Denied ({{ applications|selectattr('status','eq','denied')|list|length }})</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="applicationsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Applied</th>
+          <th>CV</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for app in applications %}
+        <tr data-status="{{ app.status }}">
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <div class="user-avatar" style="width:30px;height:30px;font-size:12px;overflow:hidden">
+                {% if app.avatar %}
+                  <img src="{{ url_for('static', filename=app.avatar) }}" alt="{{ app.name }} avatar" style="width:100%;height:100%;object-fit:cover;display:block">
+                {% else %}
+                  {{ app.name[0].upper() }}
+                {% endif %}
+              </div>
+              <strong>{{ app.name }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-500)">{{ app.email }}</td>
+          <td>
+            <span class="badge badge-{{ 'blue' if app.role == 'student' else 'green' if app.role == 'teacher' else 'purple' }}">
+              {{ app.role|capitalize }}
+            </span>
+          </td>
+          <td>
+            <span class="badge badge-{{ 'orange' if app.status == 'pending' else 'green' if app.status == 'approved' else 'red' }}">
+              {{ app.status|capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--gray-400);font-size:12px">{{ app.created_at.strftime('%b %d, %Y') }}</td>
+          <td style="text-align:center">
+            {% if app.cv_path %}
+              <a href="{{ url_for('static', filename=app.cv_path) }}" class="btn btn-primary btn-xs" target="_blank" title="Download CV">
+                <span class="svg-icon icon-download" aria-hidden="true"></span> CV
+              </a>
+            {% else %}
+              <span style="color:var(--gray-400);font-size:12px">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('admin_application_detail', app_id=app.id) }}" class="btn btn-outline btn-sm">View Details</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .btn-xs {
+    padding: 4px 8px;
+    font-size: 11px;
+    height: auto;
+  }
+
+  .svg-icon.icon-download::before {
+    content: "⬇";
+  }
+
+  @media (max-width: 768px) {
+    .table-wrap {
+      overflow-x: auto;
+    }
+  }
+</style>
+
+<script>
+function filterApps(status) {
+  document.querySelectorAll('#applicationsTable tbody tr').forEach(row => {
+    row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+  });
+  document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-primary'));
+  event.target.classList.add('btn-primary');
+  event.target.classList.remove('btn-outline');
+}
+</script>
+{% endblock %}

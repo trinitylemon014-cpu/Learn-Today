@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}Application Details — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Application Details</h2>
+    <p>{{ application.name }}'s {{ application.role }} application</p>
+  </div>
+  <a href="{{ url_for('admin_applications') }}" class="btn btn-outline btn-sm">← Back</a>
+</div>
+
+<div class="grid-2" style="gap:24px">
+  <!-- Main Info -->
+  <div class="card">
+    <h3 style="margin-bottom:16px;color:var(--navy)">Personal Information</h3>
+    
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Name</label>
+      <p style="margin:0;color:var(--navy)">{{ application.name }}</p>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Email</label>
+      <p style="margin:0;color:var(--navy)">{{ application.email }}</p>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Role</label>
+      <span class="badge badge-{{ 'blue' if application.role == 'student' else 'green' if application.role == 'teacher' else 'purple' }}">
+        {{ application.role|capitalize }}
+      </span>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Status</label>
+      <span class="badge badge-{{ 'orange' if application.status == 'pending' else 'green' if application.status == 'approved' else 'red' }}">
+        {{ application.status|capitalize }}
+      </span>
+    </div>
+
+    {% if application.date_of_birth %}
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Date of Birth</label>
+      <p style="margin:0;color:var(--navy)">{{ application.date_of_birth.strftime('%B %d, %Y') }}</p>
+    </div>
+    {% endif %}
+
+    {% if application.previous_school %}
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Previous School</label>
+      <p style="margin:0;color:var(--navy)">{{ application.previous_school }}</p>
+    </div>
+    {% endif %}
+
+    {% if application.courses_interest %}
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Courses of Interest</label>
+      <p style="margin:0;color:var(--navy)">{{ application.courses_interest }}</p>
+    </div>
+    {% endif %}
+
+    {% if application.role == 'student' and parent %}
+    <div class="form-group" style="margin-bottom:20px;padding-top:16px;border-top:1px solid var(--gray-200)">
+      <h4 style="color:var(--navy);margin-bottom:12px">Parent Information</h4>
+      
+      <div style="margin-bottom:12px">
+        <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Parent Name</label>
+        <p style="margin:0;color:var(--navy)">{{ parent.name }}</p>
+      </div>
+
+      <div>
+        <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Parent Email</label>
+        <p style="margin:0;color:var(--navy)">{{ parent.email }}</p>
+      </div>
+
+      {% if parent.status != 'approved' %}
+      <div style="margin-top:12px">
+        <label style="color:var(--gray-600);font-weight:600;margin-bottom:4px;display:block">Parent Status</label>
+        <span class="badge badge-{{ 'orange' if parent.status == 'pending' else 'red' }}">
+          {{ parent.status|capitalize }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-200)">
+      <label style="color:var(--gray-500);font-size:12px">Applied on: {{ application.created_at.strftime('%B %d, %Y at %I:%M %p') }}</label>
+    </div>
+  </div>
+
+  <!-- Actions & Files -->
+  <div>
+    <!-- CV Section -->
+    {% if application.cv_path %}
+    <div class="card" style="margin-bottom:24px">
+      <h3 style="margin-bottom:16px;color:var(--navy)">Submitted Documents</h3>
+      
+      <div style="background:var(--gray-50);padding:16px;border-radius:8px;border:1px solid var(--gray-200)">
+        <div class="flex gap-2" style="align-items:center;margin-bottom:12px">
+          <span style="font-size:24px">📄</span>
+          <div style="flex:1">
+            <p style="margin:0;color:var(--navy);font-weight:600">Curriculum Vitae</p>
+            <p style="margin:0;color:var(--gray-500);font-size:12px">Submitted with application</p>
+          </div>
+        </div>
+        <a href="{{ url_for('static', filename=application.cv_path) }}" class="btn btn-primary" target="_blank">
+          <span>📥 Download CV</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Review Actions -->
+    {% if application.status != 'approved' %}
+    <div class="card" style="background:var(--blue-50);border-color:var(--blue-200);margin-bottom:24px">
+      <h3 style="margin-bottom:16px;color:var(--navy)">Review Actions</h3>
+      
+      <form method="POST" action="{{ url_for('review_user', user_id=application.id) }}" style="display:flex;gap:12px;flex-direction:column">
+        <button class="btn btn-success" name="action" value="approve">
+          ✓ Approve Application
+        </button>
+        <button class="btn btn-danger" name="action" value="deny" onclick="return confirm('Are you sure you want to deny this application?')">
+          ✗ Deny Application
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card" style="background:var(--green-50);border-color:var(--green-200)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:32px">✓</span>
+        <div>
+          <p style="margin:0;color:var(--navy);font-weight:600">Application Approved</p>
+          <p style="margin:0;color:var(--gray-600);font-size:12px">This application has been approved</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  @media (max-width: 768px) {
+    .grid-2 {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  .form-group p {
+    padding: 8px 12px;
+    background: var(--gray-50);
+    border-radius: 6px;
+  }
+</style>
+{% endblock %}

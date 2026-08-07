@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}Attendance — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('dashboard') }}" style="color:var(--blue)">Dashboard</a>
+  <span>›</span>
+  <a href="{{ url_for('course_detail', course_id=course.id) }}" style="color:var(--blue)">{{ course.title }}</a>
+  <span>›</span>
+  <span>Attendance</span>
+</div>
+
+<div class="page-header flex-between">
+  <div>
+    <h2> Attendance — {{ course.title }}</h2>
+    <p>Track student attendance across sessions</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('analytics', course_id=course.id) }}" class="btn btn-outline btn-sm"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Analytics</a>
+  </div>
+</div>
+
+<!-- Create Session -->
+<div class="card" style="margin-bottom:24px;border-left:4px solid var(--blue)">
+  <h4 style="margin-bottom:14px">➕ Create New Session</h4>
+  <form method="POST" action="{{ url_for('create_session', course_id=course.id) }}" class="flex gap-3" style="align-items:flex-end">
+    <div class="form-group" style="margin:0;flex:1">
+      <label class="form-label">Session Name</label>
+      <input type="text" name="session_name" class="form-control" placeholder="e.g. Week 3 - Live Class" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Session</button>
+  </form>
+</div>
+
+<div class="grid-3-1">
+  <!-- Sessions + Marking -->
+  <div>
+    {% if sessions %}
+    <h4 style="margin-bottom:14px"><span class="svg-icon icon-courses-list" aria-hidden="true"></span> Sessions</h4>
+    {% for sess in sessions %}
+    <div class="card" style="margin-bottom:16px">
+      <div class="flex-between" style="margin-bottom:14px">
+        <div>
+          <h5>{{ sess.name }}</h5>
+          <span style="font-size:12px;color:var(--gray-400)">{{ sess.date.strftime('%B %d, %Y') }}</span>
+        </div>
+        <div>
+          {% set records = sess.records %}
+          {% set present_count = records|selectattr('status','eq','present')|list|length %}
+          {% set total_count = records|length %}
+          <span class="badge badge-green">{{ present_count }}/{{ total_count }} Present</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Status</th>
+              <th>Mark Attendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in sess.records %}
+            <tr id="row_{{ sess.id }}_{{ record.student_id }}">
+              <td>
+                <div class="flex gap-2" style="align-items:center">
+                  <div class="user-avatar" style="width:26px;height:26px;font-size:10px">{{ record.student.name[0].upper() }}</div>
+                  <strong>{{ record.student.name }}</strong>
+                </div>
+              </td>
+              <td>
+                <span class="att-status att-{{ record.status }}">
+                  {{ record.status|capitalize }}
+                </span>
+              </td>
+              <td>
+                <div class="flex gap-2">
+                  <button class="btn btn-sm btn-green att-btn" onclick="markAttendance({{ sess.id }}, {{ record.student_id }}, 'present', this)">Present</button>
+                  <button class="btn btn-sm btn-danger att-btn" onclick="markAttendance({{ sess.id }}, {{ record.student_id }}, 'absent', this)">Absent</button>
+                  <button class="btn btn-sm btn-outline att-btn" onclick="markAttendance({{ sess.id }}, {{ record.student_id }}, 'late', this)">Late</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card empty-state">
+      <span class="svg-icon icon-calendar icon-xl" aria-hidden="true"></span>
+      <h4>No sessions yet</h4>
+      <p>Create your first attendance session above.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Summary Sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h5 style="margin-bottom:14px"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Attendance Summary</h5>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Student</th><th>Rate</th></tr>
+          </thead>
+          <tbody>
+            {% for d in attendance_data %}
+            <tr>
+              <td style="font-size:12.5px">{{ d.student.name.split()[0] }}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div class="progress-wrap" style="flex:1;height:5px">
+                    <div class="progress-bar {% if d.rate >= 80 %}{% elif d.rate >= 50 %}blue{% else %}purple{% endif %}"
+                         style="width:{{ d.rate }}%"></div>
+                  </div>
+                  <span style="font-size:12px;font-weight:700;color:{% if d.rate >= 80 %}var(--green){% elif d.rate >= 50 %}var(--blue){% else %}var(--danger){% endif %}">{{ d.rate }}%</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="background:var(--green-bg);border:1px solid #A7F3D0">
+      <h5 style="color:#065F46;margin-bottom:10px"><span class="svg-icon icon-info" aria-hidden="true"></span> Attendance Modes</h5>
+      <div style="font-size:12.5px;color:#047857;line-height:1.7">
+        <strong>Session-based:</strong> Create a session and manually mark each student's attendance.<br><br>
+        <strong>Login-based:</strong> Students are automatically marked when they log in and access course content.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

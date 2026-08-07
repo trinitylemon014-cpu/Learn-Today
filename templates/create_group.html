@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Create Group — Learn Together{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><span class="svg-icon icon-groups" aria-hidden="true"></span> Create New Group</h2>
+  <p>Start a study group or discussion community</p>
+</div>
+
+<div style="max-width:580px">
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">Group Name</label>
+        <input type="text" name="name" class="form-control" placeholder="e.g. Python Study Team, Math Revision Group" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+        <textarea name="description" class="form-control" rows="3" placeholder="What is this group about?"></textarea>
+      </div>
+      <div class="flex gap-3">
+        <button type="submit" class="btn btn-purple btn-lg">Create Group →</button>
+        <a href="{{ url_for('groups') }}" class="btn btn-outline btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

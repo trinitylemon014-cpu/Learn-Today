@@ -1,0 +1,955 @@
+{% extends 'base.html' %}
+{% block title %}{{ group.name }} — Learn Together{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:16px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('groups') }}" style="color:var(--blue)">Groups</a>
+  <span>›</span>
+  <span>{{ group.name }}</span>
+</div>
+
+{% set group_identity = identity_for_group(group) %}
+<!-- Group Header -->
+<div class="card" style="margin-bottom:20px;border-left:4px solid var(--purple)">
+  <div class="flex-between">
+    <div class="flex gap-3" style="align-items:center">
+      <div class="group-header-avatar" style="background:linear-gradient(135deg, {{ group_identity.color }}, var(--navy));">
+        {% if group_identity.avatar_url %}
+        <img src="{{ group_identity.avatar_url }}" alt="{{ group.name }} avatar">
+        {% else %}
+        <span>{{ group_identity.initials }}</span>
+        {% endif %}
+      </div>
+      <div>
+        <h3 style="margin-bottom:4px">{{ group.name }}</h3>
+        <div class="flex gap-2" style="align-items:center">
+          <span class="badge badge-{{ 'blue' if group.group_type == 'course' else 'green' if group.group_type == 'teacher' else 'purple' }}">{{ group.group_type|capitalize }} Group</span>
+          <span style="font-size:12px;color:var(--gray-400)">{{ members|length }} members</span>
+          <span style="font-size:12px;color:var(--gray-400)">Created by {{ group.creator.name }}</span>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  {% if group.description %}
+  <p style="margin-top:12px;color:var(--gray-500);font-size:13.5px">{{ group.description }}</p>
+  {% endif %}
+  {% if current_user and (current_user.role == 'admin' or group.created_by == current_user.id or (current_user.role == 'teacher' and group.group_type in ['course','teacher'])) %}
+  <form method="POST" action="{{ url_for('update_group_avatar', group_id=group.id) }}" enctype="multipart/form-data" style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <input type="file" name="group_avatar" accept="image/*" style="font-size:12px">
+    <button class="btn btn-outline btn-sm">Set group picture</button>
+  </form>
+  {% endif %}
+</div>
+
+<!-- Chat + Members -->
+<div class="chat-layout">
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="chat-header-icon" aria-hidden="true">
+          {% if group_identity.avatar_url %}
+          <img src="{{ group_identity.avatar_url }}" alt="{{ group.name }} avatar">
+          {% else %}
+          <span>{{ group_identity.initials }}</span>
+          {% endif %}
+        </div>
+        <div>
+          <div class="chat-title">{{ group.name }}</div>
+          <div class="chat-subtitle-row">
+            <div class="chat-subtitle" id="presenceSummary">{{ members|length }} members · {{ group.group_type|capitalize }} group</div>
+            <div id="newMessageBadge" class="chat-header-badge" hidden>0</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        {% if group.course_id %}
+        <a href="{{ url_for('schedule_lesson', course_id=group.course_id) }}" class="icon-btn" title="Video call">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M15 8h3.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7 7h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        {% else %}
+        <button type="button" class="icon-btn" title="Video call" disabled>
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M15 8h3.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7 7h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% set pinned_messages = messages|selectattr('is_pinned')|list %}
+    {% if pinned_messages %}
+    <div class="pinned-message-card">
+      <div class="pinned-message-icon">📌</div>
+      <div>
+        <div class="pinned-message-label">Pinned message</div>
+        <div class="pinned-message-text">{{ pinned_messages[0].message or 'Pinned content' }}</div>
+      </div>
+      <button type="button" class="pinned-message-close" aria-label="Dismiss pinned message">✕</button>
+    </div>
+    {% endif %}
+
+    <div class="chat-messages" id="chatMessages"
+         data-group-id="{{ group.id }}"
+         data-user-id="{{ current_user.id if current_user else 0 }}">
+      {% set prev_day = none %}
+      {% for msg in messages %}
+      {% set sender_identity = identity_for_user(msg.sender) %}
+      {% set msg_day = msg.timestamp.strftime('%Y-%m-%d') %}
+      {% if prev_day is none or msg_day != prev_day %}
+      <div class="chat-day-separator"><span>{{ msg.timestamp.strftime('%A, %b %d') }}</span></div>
+      {% endif %}
+      {% set prev_day = msg_day %}
+      <div class="chat-message {{ 'own' if current_user and msg.sender_id == current_user.id else '' }}" data-msg-id="{{ msg.id }}">
+        <div class="msg-avatar" style="background:{{ sender_identity.color }};color:white">
+          {% if sender_identity.avatar_url %}
+          <img src="{{ sender_identity.avatar_url }}" alt="{{ sender_identity.name }} avatar">
+          {% else %}
+          {{ sender_identity.initials }}
+          {% endif %}
+        </div>
+        <div>
+          <div class="msg-header">
+            <div class="msg-sender-name">{{ sender_identity.name }}</div>
+            {% if msg.sender.role %}
+            <span class="msg-sender-role">{{ msg.sender.role|capitalize }}</span>
+            {% endif %}
+            <span class="msg-time">{{ msg.timestamp.strftime('%H:%M') }}</span>
+          </div>
+          <div class="msg-bubble">
+            {% if msg.is_pinned %}
+            <div class="msg-badge">Pinned</div>
+            {% endif %}
+            {% if msg.message %}
+            <div class="msg-text">{{ msg.message }}</div>
+            {% endif %}
+            {% if msg.attachment_url %}
+            <div class="msg-attachment attachment-{{ msg.attachment_type or 'file' }}">
+              {% if msg.attachment_type == 'image' %}
+              <img src="{{ url_for('static', filename=msg.attachment_url) }}" alt="{{ msg.attachment_name or 'image' }}">
+              {% elif msg.attachment_type == 'video' %}
+              <video controls preload="metadata" src="{{ url_for('static', filename=msg.attachment_url) }}"></video>
+              {% else %}
+              <a href="{{ url_for('static', filename=msg.attachment_url) }}" target="_blank" class="attachment-file">
+                <span class="attachment-icon">📎</span>
+                <span>{{ msg.attachment_name or 'Attachment' }}</span>
+              </a>
+              {% endif %}
+            </div>
+            {% endif %}
+            {% if current_user and (current_user.id == msg.sender_id or can_manage_message(current_user, msg)) %}
+            <div class="msg-menu">
+              <button type="button" class="msg-menu-toggle" aria-label="Message actions" title="Message actions">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h.01M12 12h.01M19 12h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <div class="msg-actions-menu">
+                {% if current_user.id == msg.sender_id %}
+                <form method="POST" action="{{ url_for('delete_message', group_id=group.id, message_id=msg.id) }}?scope=me" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon"></span>
+                    <span>Delete for me</span>
+                  </button>
+                </form>
+                {% endif %}
+                {% if can_manage_message(current_user, msg) %}
+                <form method="POST" action="{{ url_for('delete_message', group_id=group.id, message_id=msg.id) }}?scope=all" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">✕</span>
+                    <span>Delete for everyone</span>
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('pin_message', group_id=group.id, message_id=msg.id) }}" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">📌</span>
+                    <span>{{ 'Unpin message' if msg.is_pinned else 'Pin message' }}</span>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          <div class="msg-meta">
+            {% if not (current_user and msg.sender_id == current_user.id) %}
+            <span style="font-weight:600;color:{{ sender_identity.color }}">{{ sender_identity.name }}</span> ·
+            {% endif %}
+            <span>{{ msg.timestamp.strftime('%H:%M') }}</span>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="chat-empty-state">
+        <span style="font-size:40px">💬</span>
+        <p style="font-size:13.5px">No messages yet. Start the conversation!</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if is_member %}
+    <div class="chat-input-area">
+        <!-- typing indicator removed per UX request -->
+      <form method="POST" action="{{ url_for('send_message', group_id=group.id) }}" id="chatForm" enctype="multipart/form-data">
+        <div class="chat-input-wrap">
+          <label class="composer-attach" title="Attach a file">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M7 12.5 12.5 7a3.5 3.5 0 0 1 4.95 4.95L10.45 19A2.5 2.5 0 0 1 6 16.55l6.5-6.5a1.5 1.5 0 1 1 2.12 2.12L8.12 18.67" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input type="file" name="attachment" id="chatAttachment" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar" hidden>
+          </label>
+          <input type="text" name="message" id="chatInput" placeholder="Type a message…" autocomplete="off">
+          <button type="submit" class="chat-send-btn" aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="m5 12 14-7-3 7 3 7-14-7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <div id="attachmentPreview" class="composer-preview"></div>
+      </form>
+    </div>
+    {% else %}
+    <div class="chat-input-area" style="text-align:center">
+      <form method="POST" action="{{ url_for('join_group', group_id=group.id) }}">
+        <button class="btn btn-purple">Join to participate in the discussion</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Members Sidebar -->
+  <div class="chat-sidebar">
+    <div class="sidebar-card sidebar-card-group-info">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Info</div>
+          <div class="sidebar-card-subtitle">{{ group.group_type|capitalize }} group</div>
+        </div>
+        <span class="badge badge-purple">Public</span>
+      </div>
+      <div class="group-summary">
+        <div class="group-avatar-sm" style="background: linear-gradient(135deg, {{ group_identity.color }}, var(--navy));">
+          {% if group_identity.avatar_url %}
+          <img src="{{ group_identity.avatar_url }}" alt="{{ group.name }} avatar">
+          {% else %}
+          {{ group_identity.initials }}
+          {% endif %}
+        </div>
+        <div>
+          <div class="group-name">{{ group.name }}</div>
+          <div class="group-meta">{{ members|length }} Members</div>
+        </div>
+      </div>
+      {% if group.description %}
+      <p class="group-description">{{ group.description }}</p>
+      {% endif %}
+      <div class="group-detail-row">
+        <span>Created by</span>
+        <strong>{{ group.creator.name }}</strong>
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-members">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Members</div>
+          <div class="sidebar-card-subtitle">All members in this group</div>
+        </div>
+      </div>
+      <div class="member-list">
+        {% for member in members %}
+        {% set member_identity = identity_for_user(member.user) %}
+        <div class="member-item">
+          <div class="member-avatar" style="background: {{ member_identity.color }};">
+            {% if member_identity.avatar_url %}
+            <img src="{{ member_identity.avatar_url }}" alt="{{ member_identity.name }} avatar">
+            {% else %}
+            {{ member_identity.initials }}
+            {% endif %}
+          </div>
+          <div class="member-details">
+            <div class="member-name">{{ member_identity.name }}</div>
+            <div class="member-role">{{ member.user.role|capitalize if member.user and member.user.role else 'Member' }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-my-groups">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">My Groups</div>
+          <div class="sidebar-card-subtitle">Other groups you belong to</div>
+        </div>
+        <a href="{{ url_for('groups') }}" class="view-all-link">View all</a>
+      </div>
+      <div class="group-list">
+        {% if my_groups %}
+          {% for other in my_groups %}
+          {% set other_identity = identity_for_group(other) %}
+          <a class="group-link-card" href="{{ url_for('group_detail', group_id=other.id) }}" data-unread-group-id="{{ other.id }}">
+            <span class="group-badge">
+              {% if other_identity.avatar_url %}
+              <img src="{{ other_identity.avatar_url }}" alt="{{ other.name }} avatar">
+              {% else %}
+              {{ other_identity.initials }}
+              {% endif %}
+            </span>
+            <span class="group-link-body">
+              <span class="group-link-name">{{ other.name }}</span>
+              <span class="group-link-meta">{{ other.group_type|capitalize }} · {{ other.members|length }} members</span>
+            </span>
+            <span class="chat-unread-badge" hidden></span>
+          </a>
+          {% endfor %}
+        {% else %}
+          <div class="group-empty-state">No other groups yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-files">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Files</div>
+          <div class="sidebar-card-subtitle">Latest attachments from this group</div>
+        </div>
+        <a href="#" class="view-all-link">View all</a>
+      </div>
+      <div class="file-list" id="groupFileList">
+        {% if group_files %}
+          {% for file in group_files[-5:] %}
+          <a class="file-item" href="{{ file.url }}" target="_blank" rel="noopener">
+            <span class="file-icon {{ file.icon_class }}">{{ file.icon_label }}</span>
+            <span class="file-info">
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-meta">{{ file.meta }}</span>
+            </span>
+          </a>
+          {% endfor %}
+        {% else %}
+          <div class="file-empty-state">No files shared yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-settings">
+      <div class="sidebar-card-title">Group Options</div>
+      <form method="POST" action="{{ url_for('leave_group', group_id=group.id) }}" onsubmit="return confirm('Leave this group permanently?');">
+        <button type="submit" class="btn btn-outline btn-sm leave-group-btn">Leave Group</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatAttachment = document.getElementById('chatAttachment');
+const attachmentPreview = document.getElementById('attachmentPreview');
+const presenceSummary = document.getElementById('presenceSummary');
+const groupId = chatMessages?.dataset.groupId;
+const currentUserId = parseInt(chatMessages?.dataset.userId || '0', 10);
+const newMessageBadge = document.getElementById('newMessageBadge');
+let lastMessageId = 0;
+const renderedMessageIds = new Set();
+const unreadStoreKey = 'learnTogetherUnreadByGroup';
+let typingTimer = null;
+let lastTypingEmit = 0;
+const typingUsers = new Set();
+
+const socket = typeof io !== 'undefined' ? io() : null;
+if (socket && groupId) {
+  socket.on('connect', function() {
+    socket.emit('join', { groupId: parseInt(groupId, 10) });
+  });
+
+  socket.on('group-message', function(payload) {
+    if (!payload || parseInt(payload.groupId, 10) !== parseInt(groupId, 10)) return;
+    handleIncomingMessage(payload.message);
+  });
+
+  socket.on('message-status', function(payload) {
+    if (!payload || !payload.messageId) return;
+    const mid = String(payload.messageId);
+    // update own message status UI
+    const myMsg = document.querySelector('.chat-message[data-msg-id="' + mid + '"]');
+    if (myMsg && payload.status === 'seen') {
+      const statusEl = myMsg.querySelector('.msg-status');
+      if (statusEl) {
+        statusEl.textContent = 'Seen';
+        statusEl.classList.add('seen');
+      }
+    }
+  });
+
+  socket.on('group-typing', function(payload) {
+    if (!payload || parseInt(payload.groupId, 10) !== parseInt(groupId, 10)) return;
+    const sender = payload.sender;
+    if (!sender || sender === window.LearnTogether?.currentUserName) return;
+    typingUsers.add(sender);
+    const typingEl = document.getElementById('typingIndicator');
+    if (typingEl) {
+      typingEl.hidden = false;
+      const names = Array.from(typingUsers).slice(0,2).join(', ');
+      const textEl = typingEl.querySelector('.typing-text');
+      if (textEl) textEl.textContent = `${names} typing…`;
+    }
+    // remove after timeout
+    setTimeout(() => {
+      typingUsers.delete(sender);
+      if (typingUsers.size === 0) {
+        const typingEl2 = document.getElementById('typingIndicator');
+        if (typingEl2) typingEl2.hidden = true;
+      } else {
+        const typingEl2 = document.getElementById('typingIndicator');
+        if (typingEl2) {
+          const names = Array.from(typingUsers).slice(0,2).join(', ');
+          const textEl = typingEl2.querySelector('.typing-text');
+          if (textEl) textEl.textContent = `${names} typing…`;
+        }
+      }
+    }, 1500);
+  });
+
+  window.addEventListener('beforeunload', function() {
+    socket.emit('leave', { groupId: parseInt(groupId, 10) });
+  });
+}
+
+function getUnreadState() {
+  try { return JSON.parse(localStorage.getItem(unreadStoreKey) || '{}'); }
+  catch { return {}; }
+}
+
+function saveUnreadState(state) {
+  localStorage.setItem(unreadStoreKey, JSON.stringify(state));
+}
+
+function updateUnreadBadges() {
+  const state = getUnreadState();
+  document.querySelectorAll('[data-unread-group-id]').forEach(el => {
+    const groupId = el.dataset.unreadGroupId;
+    const count = parseInt(state[groupId] || '0', 10);
+    const badge = el.querySelector('.chat-unread-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : count;
+      badge.hidden = false;
+      el.classList.add('has-unread');
+    } else {
+      badge.hidden = true;
+      el.classList.remove('has-unread');
+    }
+  });
+}
+
+function setGroupUnread(groupId, count) {
+  if (!groupId) return;
+  const state = getUnreadState();
+  state[groupId] = Math.max(0, count);
+  saveUnreadState(state);
+  updateUnreadBadges();
+}
+
+function clearGroupUnread(groupId) {
+  if (!groupId) return;
+  const state = getUnreadState();
+  delete state[groupId];
+  saveUnreadState(state);
+  updateUnreadBadges();
+}
+
+function createToast(title, body) {
+  let existing = document.getElementById('chatToast');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'chatToast';
+    existing.className = 'chat-toast';
+    document.body.appendChild(existing);
+  }
+
+  // notify server we've joined this room for delivery tracking
+  if (socket && groupId) {
+    socket.emit('join', { groupId: parseInt(groupId, 10) });
+  }
+  existing.innerHTML = `
+    <div class="chat-toast-badge">📩 New message</div>
+    <div class="chat-toast-title">${title}</div>
+    <div class="chat-toast-body">${body}</div>
+  `;
+  existing.classList.add('show');
+  clearTimeout(createToast.timer);
+  createToast.timer = setTimeout(() => existing.classList.remove('show'), 4000);
+}
+
+function setUnreadCount(count) {
+  if (!newMessageBadge) return;
+  if (count > 0) {
+    newMessageBadge.textContent = count;
+    newMessageBadge.hidden = false;
+  } else {
+    newMessageBadge.hidden = true;
+  }
+}
+
+function addUnreadMessage() {
+  if (!newMessageBadge) return;
+  const current = parseInt(newMessageBadge.textContent || '0', 10) || 0;
+  setUnreadCount(current + 1);
+}
+
+function clearUnreadCount() {
+  setUnreadCount(0);
+}
+
+function showBrowserNotification(sender, message) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(`${sender} sent a message`, { body: message, icon: '/static/favicon.ico' });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function appendAttachmentMarkup(container, msg) {
+  if (!msg.attachment_url) return;
+  const attachmentWrap = document.createElement('div');
+  attachmentWrap.className = `msg-attachment attachment-${msg.attachment_type || 'file'}`;
+  if (msg.attachment_type === 'image') {
+    const img = document.createElement('img');
+    img.src = msg.attachment_url;
+    img.alt = msg.attachment_name || 'image';
+    attachmentWrap.appendChild(img);
+  } else if (msg.attachment_type === 'video') {
+    const video = document.createElement('video');
+    video.controls = true;
+    video.preload = 'metadata';
+    video.src = msg.attachment_url;
+    attachmentWrap.appendChild(video);
+  } else {
+    const link = document.createElement('a');
+    link.href = msg.attachment_url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'attachment-file';
+    link.innerHTML = `<span class="attachment-icon">📎</span><span>${msg.attachment_name || 'Attachment'}</span>`;
+    attachmentWrap.appendChild(link);
+  }
+  container.appendChild(attachmentWrap);
+}
+
+function renderMessage(msg, options = {}) {
+  if (!chatMessages || !msg || (msg.id === undefined && !msg.clientId)) return;
+  const mid = msg.id !== undefined && msg.id !== null ? String(msg.id) : null;
+  const cid = msg.clientId ? String(msg.clientId) : (msg.client_id ? String(msg.client_id) : null);
+  if ((mid && renderedMessageIds.has(`id:${mid}`)) || (cid && renderedMessageIds.has(`cid:${cid}`))) return;
+  const emptyState = chatMessages.querySelector('.chat-empty-state');
+  if (emptyState) emptyState.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `chat-message${Number(msg.sender_id) === currentUserId ? ' own' : ''}`;
+  wrapper.dataset.msgId = mid || '';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.style.background = msg.sender_color || 'hsl(225 70% 55%)';
+  avatar.style.color = 'white';
+  if (msg.sender_avatar) {
+    avatar.innerHTML = `<img src="${msg.sender_avatar}" alt="${msg.sender} avatar" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`;
+  } else {
+    avatar.textContent = msg.sender_initials || msg.sender[0].toUpperCase();
+  }
+
+  const body = document.createElement('div');
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (msg.message) {
+    const text = document.createElement('div');
+    text.className = 'msg-text';
+    text.textContent = msg.message;
+    bubble.appendChild(text);
+  }
+  if (msg.attachment_url) {
+    appendAttachmentMarkup(bubble, msg);
+  }
+  if (msg.sender_id === currentUserId) {
+    bubble.style.borderRight = `3px solid ${msg.sender_color || 'hsl(225 70% 55%)'}`;
+  } else {
+    bubble.style.borderLeft = `3px solid ${msg.sender_color || 'hsl(225 70% 55%)'}`;
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  if (msg.sender_id !== currentUserId) {
+    const senderEl = document.createElement('span');
+    senderEl.textContent = msg.sender;
+    senderEl.style.color = msg.sender_color || 'var(--navy)';
+    senderEl.style.fontWeight = '600';
+    meta.appendChild(senderEl);
+    meta.appendChild(document.createTextNode(' · '));
+  }
+  const timeEl = document.createElement('span');
+  timeEl.textContent = msg.timestamp;
+  meta.appendChild(timeEl);
+
+  if (Number(msg.sender_id) === currentUserId && options.showStatus) {
+    const status = document.createElement('div');
+    status.className = 'msg-status';
+    status.textContent = 'Sent';
+    body.appendChild(status);
+    setTimeout(() => {
+      if (status.isConnected) {
+        status.textContent = 'Seen';
+        status.classList.add('seen');
+      }
+    }, 900);
+  }
+
+  body.appendChild(bubble);
+  body.appendChild(meta);
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(body);
+  chatMessages.appendChild(wrapper);
+  if (mid) renderedMessageIds.add(`id:${mid}`);
+  if (cid) renderedMessageIds.add(`cid:${cid}`);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  // ack delivery to server if this is a message from someone else
+  if (socket && Number(msg.sender_id) !== currentUserId) {
+    socket.emit('message-delivered', { groupId: groupId, messageId: msg.id, userId: currentUserId });
+    // if user is focused, also mark seen immediately
+    if (!document.hidden && document.hasFocus()) {
+      socket.emit('message-seen', { groupId: groupId, messageId: msg.id, userId: currentUserId });
+    }
+  }
+}
+
+function handleIncomingMessage(msg) {
+  if (!msg || msg.id === undefined || msg.id === null) return;
+  const mid = String(msg.id);
+  if (renderedMessageIds.has(mid)) return;
+  // ensure message object has consistent id type for downstream code
+  msg.id = mid;
+  renderMessage(msg);
+  updateGroupFileList(msg);
+  if (msg.sender_id !== currentUserId) {
+    if (document.hidden || !document.hasFocus()) {
+      addUnreadMessage();
+      setGroupUnread(groupId, (parseInt(getUnreadState()[groupId] || '0', 10) + 1));
+      createToast(msg.sender, msg.message || (msg.attachment_name || 'shared an attachment'));
+      showBrowserNotification(msg.sender, msg.message || (msg.attachment_name || 'shared an attachment'));
+    } else {
+      clearGroupUnread(groupId);
+    }
+  }
+  lastMessageId = Math.max(lastMessageId, msg.id);
+}
+
+function updateLastMessageId() {
+  const messageNodes = chatMessages?.querySelectorAll('.chat-message[data-msg-id]') || [];
+  if (messageNodes.length) {
+    lastMessageId = Math.max(...Array.from(messageNodes).map(node => parseInt(node.dataset.msgId || '0', 10)));
+    // populate renderedMessageIds from server-rendered DOM to avoid duplicate rendering
+    Array.from(messageNodes).forEach(node => {
+      const mid = String(node.dataset.msgId);
+      if (mid) renderedMessageIds.add(mid);
+    });
+  }
+}
+
+function updateGroupFileList(message) {
+  if (!message?.attachment_url) return;
+  const fileList = document.getElementById('groupFileList');
+  if (!fileList) return;
+  const item = document.createElement('a');
+  item.className = 'file-item';
+  item.href = message.attachment_url;
+  item.target = '_blank';
+  item.rel = 'noopener';
+  item.innerHTML = `
+    <span class="file-icon ${attachmentIconClass(message.attachment_name, message.attachment_type)}">${attachmentIconLabel(message.attachment_name, message.attachment_type)}</span>
+    <span class="file-info">
+      <span class="file-name">${message.attachment_name || 'Attachment'}</span>
+      <span class="file-meta">${attachmentMetaLabel(message.attachment_name, message.attachment_type)}</span>
+    </span>
+  `;
+  const existingEmpty = fileList.querySelector('.file-empty-state');
+  if (existingEmpty) {
+    existingEmpty.remove();
+  }
+  fileList.appendChild(item);
+  if (fileList.children.length > 5) {
+    fileList.removeChild(fileList.firstChild);
+  }
+}
+
+function attachmentIconLabel(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (attachmentType === 'image') return 'IMG';
+  if (attachmentType === 'video') return 'VID';
+  if (extension) return extension.toUpperCase();
+  return 'FILE';
+}
+
+function attachmentIconClass(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (extension === 'pdf') return 'file-icon-pdf';
+  if (['doc', 'docx'].includes(extension)) return 'file-icon-doc';
+  if (['ppt', 'pptx'].includes(extension)) return 'file-icon-ppt';
+  if (['xls', 'xlsx'].includes(extension)) return 'file-icon-xls';
+  if (['py', 'js', 'ts', 'java', 'c', 'cpp', 'rb', 'go', 'php'].includes(extension)) return 'file-icon-code';
+  if (attachmentType === 'image') return 'file-icon-image';
+  if (attachmentType === 'video') return 'file-icon-video';
+  return 'file-icon-file';
+}
+
+function attachmentMetaLabel(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (attachmentType === 'image') return 'Image';
+  if (attachmentType === 'video') return 'Video';
+  if (extension === 'pdf') return 'PDF';
+  if (['doc', 'docx'].includes(extension)) return 'Word file';
+  if (['ppt', 'pptx'].includes(extension)) return 'Presentation';
+  if (['xls', 'xlsx'].includes(extension)) return 'Spreadsheet';
+  if (['py', 'js', 'ts', 'java', 'c', 'cpp', 'rb', 'go', 'php'].includes(extension)) return 'Code file';
+  if (extension) return `${extension.toUpperCase()} file`;
+  return 'Attachment';
+}
+
+function formatFileSize(bytes) {
+  if (bytes === undefined || bytes === null) return '';
+  if (bytes < 1024) return bytes + ' bytes';
+  const kb = bytes / 1024;
+  if (kb < 1024) return kb.toFixed(1) + ' KB';
+  const mb = kb / 1024;
+  return mb.toFixed(2) + ' MB';
+}
+
+function openAttachmentModal(src, alt) {
+  const modal = document.getElementById('attachmentModal');
+  const modalImg = document.getElementById('attachmentModalImg');
+  const modalCaption = document.getElementById('attachmentModalCaption');
+  if (!modal || !modalImg) return;
+  modalImg.src = src;
+  modalImg.alt = alt || '';
+  modalCaption.textContent = alt || '';
+  modal.hidden = false;
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+
+  function closeModal() {
+    modal.hidden = true;
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+    modalImg.src = '';
+    window.removeEventListener('keydown', onKey);
+    modal.removeEventListener('click', onOutsideClick);
+  }
+
+  function onKey(e) { if (e.key === 'Escape') closeModal(); }
+  function onOutsideClick(e) { if (e.target === modal) closeModal(); }
+  window.addEventListener('keydown', onKey);
+  modal.addEventListener('click', onOutsideClick);
+  const closeBtn = modal.querySelector('.attachment-modal-close');
+  closeBtn?.addEventListener('click', closeModal, { once: true });
+}
+
+document.addEventListener('click', function(event) {
+  const toggle = event.target.closest('.msg-menu-toggle');
+  if (toggle) {
+    const menu = toggle.closest('.msg-menu').querySelector('.msg-actions-menu');
+    document.querySelectorAll('.msg-actions-menu.show').forEach(existing => {
+      if (existing !== menu) existing.classList.remove('show');
+    });
+    menu.classList.toggle('show');
+    event.stopPropagation();
+    return;
+  }
+  document.querySelectorAll('.msg-actions-menu.show').forEach(menu => menu.classList.remove('show'));
+});
+
+function loadNewMessages() {
+  if (!groupId) return;
+  fetch(`/api/groups/${groupId}/messages?after=${lastMessageId}`)
+    .then(res => res.json())
+    .then(messages => {
+      if (!messages.length) return;
+      messages.forEach(handleIncomingMessage);
+    })
+    .catch(() => {});
+}
+
+chatAttachment?.addEventListener('change', function() {
+  if (!attachmentPreview) return;
+  if (this.files && this.files[0]) {
+    const file = this.files[0];
+    const sizeText = formatFileSize(file.size);
+    let blobUrl = null;
+    let thumbHtml = '';
+    if (file.type && file.type.startsWith('image/')) {
+      blobUrl = URL.createObjectURL(file);
+      thumbHtml = `<img class="attachment-thumbnail" src="${blobUrl}" alt="${file.name} thumbnail" role="img">`;
+    }
+    attachmentPreview.innerHTML = `
+      <div class="attachment-preview-item">
+        ${thumbHtml}
+        <div class="attachment-meta">
+          <div class="attachment-name">${file.name}</div>
+          <div class="attachment-size">${sizeText}</div>
+        </div>
+        <button type="button" class="attachment-remove-btn" aria-label="Remove attachment">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <span class="sr-only">Attachment: ${file.name}. Size: ${sizeText}.</span>
+      </div>
+    `;
+    const removeBtn = attachmentPreview.querySelector('.attachment-remove-btn');
+    removeBtn?.addEventListener('click', function() {
+      if (chatAttachment) chatAttachment.value = '';
+      if (attachmentPreview) {
+        const img = attachmentPreview.querySelector('img.attachment-thumbnail');
+        if (img && img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+        attachmentPreview.innerHTML = '';
+      }
+    });
+    if (blobUrl) {
+      const img = attachmentPreview.querySelector('img.attachment-thumbnail');
+      if (img) {
+        const tmp = new Image();
+        tmp.onload = function() {
+          const sizeEl = attachmentPreview.querySelector('.attachment-size');
+          if (sizeEl) sizeEl.textContent = sizeText + ` · ${tmp.naturalWidth}×${tmp.naturalHeight}px`;
+        };
+        tmp.src = blobUrl;
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', function() { openAttachmentModal(blobUrl, file.name); });
+      }
+    }
+  } else {
+    attachmentPreview.innerHTML = '';
+  }
+});
+
+chatForm?.addEventListener('submit', function(e) {
+  e.preventDefault();
+  if (!chatInput || (!chatInput.value.trim() && !chatAttachment?.files?.length)) return;
+  const formData = new FormData(chatForm);
+  // generate a short-lived client id to dedupe optimistic render vs socket broadcast
+  const clientId = `c_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+  formData.append('clientId', clientId);
+  // mark clientId as rendered preemptively so socket echoes won't duplicate
+  renderedMessageIds.add(`cid:${clientId}`);
+  fetch(chatForm.action, {
+    method: 'POST',
+    body: formData,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.message) {
+        // normalize and dedupe by either server id or client id
+        const mid = String(data.message.id);
+        const cid = data.message.clientId ? String(data.message.clientId) : null;
+        if (cid && renderedMessageIds.has(`cid:${cid}`)) {
+          // we've already marked this as rendered via client-side optimistic add
+          // ensure server id is recorded too
+          renderedMessageIds.add(`id:${mid}`);
+        } else if (!renderedMessageIds.has(`id:${mid}`) && !(cid && renderedMessageIds.has(`cid:${cid}`))) {
+          data.message.id = mid;
+          renderMessage(data.message, { showStatus: true });
+          updateGroupFileList(data.message);
+        }
+        // always store both keys for future dedupe
+        renderedMessageIds.add(`id:${mid}`);
+        if (cid) renderedMessageIds.add(`cid:${cid}`);
+        lastMessageId = Math.max(lastMessageId, parseInt(mid, 10) || lastMessageId);
+      }
+      chatInput.value = '';
+      if (chatAttachment) chatAttachment.value = '';
+      if (attachmentPreview) attachmentPreview.innerHTML = '';
+    })
+    .catch(() => {
+      chatForm.submit();
+    });
+});
+
+chatInput?.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    chatForm?.dispatchEvent(new Event('submit', { cancelable: true }));
+  }
+});
+
+function showTypingIndicator() {
+  const typingEl = document.getElementById('typingIndicator');
+  if (!typingEl) return;
+  typingEl.hidden = false;
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    typingEl.hidden = true;
+  }, 1400);
+}
+
+function hideTypingIndicator() {
+  const typingEl = document.getElementById('typingIndicator');
+  if (typingEl) typingEl.hidden = true;
+  clearTimeout(typingTimer);
+}
+
+chatInput?.addEventListener('input', function() {
+  if (chatInput.value.trim()) {
+    showTypingIndicator();
+    const now = Date.now();
+    if (socket && (now - lastTypingEmit) > 700) {
+      socket.emit('typing', { groupId: groupId, sender: window.LearnTogether?.currentUserName || '' });
+      lastTypingEmit = now;
+    }
+  } else {
+    hideTypingIndicator();
+  }
+});
+chatInput?.addEventListener('focus', function() {
+  if (chatInput.value.trim()) showTypingIndicator();
+});
+chatInput?.addEventListener('blur', hideTypingIndicator);
+
+window.addEventListener('focus', () => {
+  clearUnreadCount();
+  clearGroupUnread(groupId);
+});
+window.addEventListener('visibilitychange', function() {
+  if (!document.hidden) {
+    clearUnreadCount();
+    clearGroupUnread(groupId);
+  }
+});
+
+updateLastMessageId();
+updateUnreadBadges();
+clearGroupUnread(groupId);
+setInterval(loadNewMessages, 3000);
+window.addEventListener('load', () => {
+  loadNewMessages();
+  updateUnreadBadges();
+});
+</script>
+<!-- Attachment modal -->
+<div id="attachmentModal" class="attachment-modal" hidden>
+  <div class="attachment-modal-content">
+    <button class="attachment-modal-close" aria-label="Close preview">✕</button>
+    <img id="attachmentModalImg" src="" alt=""/>
+    <div id="attachmentModalCaption" class="attachment-modal-caption"></div>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Dashboard — Learn Together{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+  <div class="welcome-text">
+    <h3>Welcome back, {{ current_user.name }}!</h3>
+    <p>Here's what's happening with your courses.</p>
+  </div>
+  <div style="position:relative;z-index:1;display:flex;gap:10px">
+    <a href="{{ url_for('create_course') }}" class="btn btn-green"><span class="svg-icon icon-add" aria-hidden="true"></span> New Course</a>
+    <a href="{{ url_for('create_group') }}" class="btn btn-purple"><span class="svg-icon icon-add" aria-hidden="true"></span> New Group</a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-icon blue"><span class="svg-icon icon-courses" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ courses|length }}</div>
+    <div class="stat-label">My Courses</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon green"><span class="svg-icon icon-users" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ total_students }}</div>
+    <div class="stat-label">Total Students</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon purple"><span class="svg-icon icon-groups" aria-hidden="true"></span></div>
+    <div class="stat-value">{{ groups|length }}</div>
+    <div class="stat-label">Groups</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon orange"><span class="svg-icon icon-courses-list" aria-hidden="true"></span></div>
+  </div>
+</div>
+
+<div class="grid-3-1">
+  <!-- Courses -->
+  <div>
+    <div class="flex-between mb-4">
+      <h4>My Courses</h4>
+      <a href="{{ url_for('create_course') }}" class="btn btn-primary btn-sm">+ New Course</a>
+    </div>
+    {% if courses %}
+    <div style="display:flex;flex-direction:column;gap:14px">
+      {% for course in courses %}
+      <div class="card card-sm">
+        <div class="flex-between">
+          <div class="flex gap-3" style="align-items:center;flex:1">
+            {% if course.thumbnail %}
+              {% if course.thumbnail.startswith('uploads/') %}
+              <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }} thumbnail" style="width:46px;height:46px;object-fit:cover;border-radius:10px;flex-shrink:0">
+              {% else %}
+              <div style="width:46px;height:46px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:white;flex-shrink:0">
+                {{ course.thumbnail[:2].upper() }}
+              </div>
+              {% endif %}
+            {% else %}
+            <div style="width:46px;height:46px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+              <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+            </div>
+            {% endif %}
+            <div style="flex:1">
+              <div style="font-weight:700;color:var(--navy)">{{ course.title }}</div>
+              <div style="font-size:12px;color:var(--gray-400)">{{ course.enrollments|length }} students enrolled</div>
+              {% set avg = namespace(val=0) %}
+              {% if course.enrollments %}
+                {% set avg.val = 0 %}
+              {% endif %}
+              <div class="progress-wrap" style="margin-top:6px">
+                <div class="progress-bar blue" style="width:{{ [course.enrollments|length * 5, 100]|min }}%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2" style="margin-left:14px">
+            <a href="{{ url_for('analytics', course_id=course.id) }}" class="btn btn-outline btn-sm"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Analytics</a>
+            <a href="{{ url_for('attendance', course_id=course.id) }}" class="btn btn-outline btn-sm"><span class="svg-icon icon-attendance" aria-hidden="true"></span> Attendance</a>
+            <a href="{{ url_for('add_content', course_id=course.id) }}" class="btn btn-primary btn-sm"><span class="svg-icon icon-add" aria-hidden="true"></span> Content</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty-state">
+      <span class="svg-icon icon-courses icon-xl" aria-hidden="true"></span>
+      <h4>No courses yet</h4>
+      <p>Create your first course to start teaching!</p>
+      <a href="{{ url_for('create_course') }}" class="btn btn-primary" style="margin-top:14px"><span class="svg-icon icon-add" aria-hidden="true"></span> Create Course</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent Activity -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="card">
+      <h5 style="margin-bottom:14px"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Recent Activity</h5>
+      {% if recent_activity %}
+      <div style="display:flex;flex-direction:column;gap:12px">
+        {% for log in recent_activity %}
+        <div class="flex gap-2" style="align-items:flex-start">
+          <div style="width:30px;height:30px;background:var(--green-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">
+            <span class="svg-icon icon-analytics" aria-hidden="true"></span>
+          </div>
+          <div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--gray-700)">
+              {{ log.student.name }} {{ log.action }} content
+            </div>
+            <div style="font-size:11px;color:var(--gray-400)">{{ log.course.title[:25] }} · {{ log.timestamp.strftime('%b %d') }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted text-sm">No recent student activity yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="flex-between mb-4">
+        <h5><span class="svg-icon icon-calendar" aria-hidden="true"></span> Today</h5>
+        <a href="{{ url_for('calendar_view') }}" class="text-blue text-sm font-bold"><span class="svg-icon icon-calendar" aria-hidden="true"></span> View Calendar</a>
+      </div>
+      {% if today_events or today_reminders %}
+      <div style="display:flex;flex-direction:column;gap:12px">
+        {% for event in today_events %}
+        <div class="dashboard-reminder-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <div style="font-weight:700;color:var(--navy)">{{ event.title }}</div>
+              <div style="font-size:12px;color:var(--gray-500)">Event • {{ event.start_at.strftime('%I:%M %p') }}{% if event.end_at %} - {{ event.end_at.strftime('%I:%M %p') }}{% endif %}</div>
+            </div>
+            <span class="badge badge-purple">{{ event.event_type|capitalize }}</span>
+          </div>
+          {% if event.location %}
+          <div style="margin-top:8px;font-size:12px;color:var(--gray-600)">Location: {{ event.location }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+
+        {% for reminder in today_reminders %}
+        <div class="dashboard-reminder-card" style="background:var(--gray-50)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <div style="font-weight:700;color:var(--navy)">{{ reminder.title }}</div>
+              <div style="font-size:12px;color:var(--gray-500)">Reminder • {{ reminder.reminder_for.strftime('%I:%M %p') }}</div>
+            </div>
+            <span class="badge badge-blue">Reminder</span>
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:var(--gray-600)">{{ reminder.body }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-sm" style="background:var(--gray-50);border:1px solid var(--gray-200);">
+        No reminders or events scheduled for today.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

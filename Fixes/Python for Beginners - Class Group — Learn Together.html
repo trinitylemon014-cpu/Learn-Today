@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python for Beginners - Class Group — Learn Together</title>
+  <link rel="stylesheet" href="./Python for Beginners - Class Group — Learn Together_files/style.css">
+  <link rel="icon" href="./Python for Beginners - Class Group — Learn Together_files/logo.png">
+  
+</head>
+<body>
+
+
+<!-- ════ AUTHENTICATED LAYOUT ════ -->
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand-badge">
+        <img src="./Python for Beginners - Class Group — Learn Together_files/logo.png" alt="Learn Together logo" class="brand-logo brand-logo-sidebar">
+      </div>
+      <span class="sidebar-logo-text">Learn<span>Together</span></span>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-avatar">
+        
+          M
+        
+      </div>
+      <div>
+        <div class="user-info-name">Mr. Smith</div>
+        <div class="user-info-role">teacher</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="http://localhost:5000/dashboard" class="nav-item " title="Dashboard">
+        <span class="nav-icon svg-icon icon-dashboard" aria-hidden="true"></span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="http://localhost:5000/courses" class="nav-item " title="Courses">
+        <span class="nav-icon svg-icon icon-courses" aria-hidden="true"></span>
+        <span class="nav-label">Courses</span>
+      </a>
+      <a href="http://localhost:5000/groups" class="nav-item active" title="Groups">
+        <span class="nav-icon svg-icon icon-groups" aria-hidden="true"></span>
+        <span class="nav-label">Groups</span>
+      </a>
+
+      
+      <div class="nav-section-label">Teaching</div>
+      <a href="http://localhost:5000/courses/create" class="nav-item" title="New Course">
+        <span class="nav-icon svg-icon icon-add" aria-hidden="true"></span>
+        <span class="nav-label">New Course</span>
+      </a>
+      
+      <a href="http://localhost:5000/analytics/1" class="nav-item " title="Analytics">
+        <span class="nav-icon svg-icon icon-analytics" aria-hidden="true"></span>
+        <span class="nav-label">Analytics</span>
+      </a>
+      <a href="http://localhost:5000/attendance/1" class="nav-item " title="Attendance">
+        <span class="nav-icon svg-icon icon-attendance" aria-hidden="true"></span>
+        <span class="nav-label">Attendance</span>
+      </a>
+      
+      
+
+      
+
+      
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="http://localhost:5000/profile" class="nav-item" title="Profile">
+        <span class="nav-icon svg-icon icon-profile" aria-hidden="true"></span>
+        <span class="nav-label">Profile</span>
+      </a>
+      <a href="http://localhost:5000/logout" class="nav-item" title="Logout">
+        <span class="nav-icon svg-icon icon-logout" aria-hidden="true"></span>
+        <span class="nav-label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="topbar-btn" id="sidebarToggle" aria-label="Open navigation">
+          <span class="svg-icon icon-menu" aria-hidden="true"></span>
+        </button>
+        <button class="topbar-btn" id="sidebarCollapse" aria-label="Compact navigation">
+          <span class="svg-icon icon-arrow-left" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="topbar-search">
+        <span class="topbar-search-icon svg-icon icon-search" aria-hidden="true"></span>
+        <input type="text" placeholder="Search courses, groups…">
+      </div>
+      <div class="topbar-actions">
+        <a href="http://localhost:5000/notifications" class="topbar-btn" aria-label="Notifications">
+          <span class="svg-icon icon-bell" aria-hidden="true"></span>
+          
+          <span class="topbar-badge">3</span>
+          
+        </a>
+        <a href="http://localhost:5000/calendar" class="topbar-btn" aria-label="Calendar">
+          <span class="svg-icon icon-calendar" aria-hidden="true"></span>
+        </a>
+        <div class="topbar-user">
+          <div class="user-avatar" style="width:32px;height:32px;font-size:12px">
+            
+              M
+            
+          </div>
+          <div>
+            <div class="topbar-user-name">Mr. Smith</div>
+            <div class="topbar-user-role">teacher</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Flash messages -->
+    <div style="padding: 0 28px; margin-top: 12px;">
+      
+        
+      
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+      
+<div class="flex gap-2" style="align-items:center;margin-bottom:16px;font-size:13px;color:var(--gray-400)">
+  <a href="http://localhost:5000/groups" style="color:var(--blue)">Groups</a>
+  <span>›</span>
+  <span>Python for Beginners - Class Group</span>
+</div>
+
+
+<!-- Group Header -->
+<div class="card" style="margin-bottom:20px;border-left:4px solid var(--purple)">
+  <div class="flex-between">
+    <div class="flex gap-3" style="align-items:center">
+      <div class="group-header-avatar" style="background:linear-gradient(135deg, hsl(196 70% 46%), var(--navy));">
+        
+        <span>PG</span>
+        
+      </div>
+      <div>
+        <h3 style="margin-bottom:4px">Python for Beginners - Class Group</h3>
+        <div class="flex gap-2" style="align-items:center">
+          <span class="badge badge-blue">Course Group</span>
+          <span style="font-size:12px;color:var(--gray-400)">3 members</span>
+          <span style="font-size:12px;color:var(--gray-400)">Created by Mr. Smith</span>
+        </div>
+      </div>
+    </div>
+    
+    
+    <a href="http://localhost:5000/courses/1" class="btn btn-outline btn-sm">← Back to Course</a>
+    
+    
+  </div>
+  
+  <p style="margin-top:12px;color:var(--gray-500);font-size:13.5px">Official discussion group for Python for Beginners</p>
+  
+  
+  <form method="POST" action="http://localhost:5000/groups/1/avatar" enctype="multipart/form-data" style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <input type="file" name="group_avatar" accept="image/*" style="font-size:12px">
+    <button class="btn btn-outline btn-sm">Set group picture</button>
+  </form>
+  
+</div>
+
+<!-- Chat + Members -->
+<div class="chat-layout">
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="chat-header-icon" aria-hidden="true">
+          
+          <span>PG</span>
+          
+        </div>
+        <div>
+          <div class="chat-title">Python for Beginners - Class Group</div>
+          <div class="chat-subtitle-row">
+            <div class="chat-subtitle" id="presenceSummary">3 members · Course group</div>
+            <div id="newMessageBadge" class="chat-header-badge" hidden="">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        
+        <a href="http://localhost:5000/courses/1/lessons/schedule" class="icon-btn" title="Video call">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M15 8h3.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M7 7h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </a>
+        
+      </div>
+    </div>
+
+    
+    
+
+    
+    <div class="chat-day-separator"><span>Today</span></div>
+    
+
+    <div class="chat-messages" id="chatMessages" data-group-id="1" data-user-id="2">
+      
+      
+      <div class="chat-message own" data-msg-id="1">
+        <div class="msg-avatar" style="background:hsl(200 70% 46%);color:white">
+          
+          MS
+          
+        </div>
+        <div>
+          <div class="msg-header">
+            <div class="msg-sender-name">Mr. Smith</div>
+            
+            <span class="msg-sender-role">Teacher</span>
+            
+            <span class="msg-time">06:01</span>
+          </div>
+          <div class="msg-bubble">
+            
+            
+            <div class="msg-text">Welcome everyone! Feel free to ask any questions here.</div>
+            
+            
+            
+            <div class="msg-menu">
+              <button type="button" class="msg-menu-toggle" aria-label="Message actions" title="Message actions">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h.01M12 12h.01M19 12h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                </svg>
+              </button>
+              <div class="msg-actions-menu">
+                
+                <form method="POST" action="http://localhost:5000/groups/1/messages/1/delete?scope=me" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon"></span>
+                    <span>Delete for me</span>
+                  </button>
+                </form>
+                
+                
+                <form method="POST" action="http://localhost:5000/groups/1/messages/1/delete?scope=all" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">✕</span>
+                    <span>Delete for everyone</span>
+                  </button>
+                </form>
+                <form method="POST" action="http://localhost:5000/groups/1/messages/1/pin" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">📌</span>
+                    <span>Pin message</span>
+                  </button>
+                </form>
+                
+              </div>
+            </div>
+            
+          </div>
+          <div class="msg-meta">
+            
+            <span>06:01</span>
+          </div>
+        </div>
+      </div>
+      
+      
+      <div class="chat-message " data-msg-id="2">
+        <div class="msg-avatar" style="background:hsl(236 70% 46%);color:white">
+          
+          JD
+          
+        </div>
+        <div>
+          <div class="msg-header">
+            <div class="msg-sender-name">John Doe</div>
+            
+            <span class="msg-sender-role">Student</span>
+            
+            <span class="msg-time">06:01</span>
+          </div>
+          <div class="msg-bubble">
+            
+            
+            <div class="msg-text">Thank you! I have a question about loops.</div>
+            
+            
+            
+            <div class="msg-menu">
+              <button type="button" class="msg-menu-toggle" aria-label="Message actions" title="Message actions">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h.01M12 12h.01M19 12h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                </svg>
+              </button>
+              <div class="msg-actions-menu">
+                
+                
+                <form method="POST" action="http://localhost:5000/groups/1/messages/2/delete?scope=all" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">✕</span>
+                    <span>Delete for everyone</span>
+                  </button>
+                </form>
+                <form method="POST" action="http://localhost:5000/groups/1/messages/2/pin" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">📌</span>
+                    <span>Pin message</span>
+                  </button>
+                </form>
+                
+              </div>
+            </div>
+            
+          </div>
+          <div class="msg-meta">
+            
+            <span style="font-weight:600;color:hsl(236 70% 46%)">John Doe</span> ·
+            
+            <span>06:01</span>
+          </div>
+        </div>
+      </div>
+      
+      
+      <div class="chat-message own" data-msg-id="3">
+        <div class="msg-avatar" style="background:hsl(200 70% 46%);color:white">
+          
+          MS
+          
+        </div>
+        <div>
+          <div class="msg-header">
+            <div class="msg-sender-name">Mr. Smith</div>
+            
+            <span class="msg-sender-role">Teacher</span>
+            
+            <span class="msg-time">06:01</span>
+          </div>
+          <div class="msg-bubble">
+            
+            
+            <div class="msg-text">Great question! I'll explain with an example.</div>
+            
+            
+            
+            <div class="msg-menu">
+              <button type="button" class="msg-menu-toggle" aria-label="Message actions" title="Message actions">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h.01M12 12h.01M19 12h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                </svg>
+              </button>
+              <div class="msg-actions-menu">
+                
+                <form method="POST" action="http://localhost:5000/groups/1/messages/3/delete?scope=me" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon"></span>
+                    <span>Delete for me</span>
+                  </button>
+                </form>
+                
+                
+                <form method="POST" action="http://localhost:5000/groups/1/messages/3/delete?scope=all" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">✕</span>
+                    <span>Delete for everyone</span>
+                  </button>
+                </form>
+                <form method="POST" action="http://localhost:5000/groups/1/messages/3/pin" class="msg-action-form">
+                  <button type="submit" class="msg-action-btn">
+                    <span class="msg-action-icon">📌</span>
+                    <span>Pin message</span>
+                  </button>
+                </form>
+                
+              </div>
+            </div>
+            
+          </div>
+          <div class="msg-meta">
+            
+            <span>06:01</span>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+
+    
+    <div class="chat-input-area">
+      <form method="POST" action="http://localhost:5000/groups/1/message" id="chatForm" enctype="multipart/form-data">
+        <div class="chat-input-wrap">
+          <label class="composer-attach" title="Attach a file">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M7 12.5 12.5 7a3.5 3.5 0 0 1 4.95 4.95L10.45 19A2.5 2.5 0 0 1 6 16.55l6.5-6.5a1.5 1.5 0 1 1 2.12 2.12L8.12 18.67" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <input type="file" name="attachment" id="chatAttachment" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar" hidden="">
+          </label>
+          <input type="text" name="message" id="chatInput" placeholder="Type a message…" autocomplete="off">
+          <button type="submit" class="chat-send-btn" aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="m5 12 14-7-3 7 3 7-14-7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="attachmentPreview" class="composer-preview"></div>
+      </form>
+    </div>
+    
+  </div>
+
+  <!-- Members Sidebar -->
+  <div class="chat-sidebar">
+    <div class="sidebar-card sidebar-card-group-info">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Info</div>
+          <div class="sidebar-card-subtitle">Course group</div>
+        </div>
+        <span class="badge badge-purple">Public</span>
+      </div>
+      <div class="group-summary">
+        <div class="group-avatar-sm" style="background: linear-gradient(135deg, hsl(196 70% 46%), var(--navy));">
+          
+          PG
+          
+        </div>
+        <div>
+          <div class="group-name">Python for Beginners - Class Group</div>
+          <div class="group-meta">3 Members</div>
+        </div>
+      </div>
+      
+      <p class="group-description">Official discussion group for Python for Beginners</p>
+      
+      <div class="group-detail-row">
+        <span>Created by</span>
+        <strong>Mr. Smith</strong>
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-members">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Members</div>
+          <div class="sidebar-card-subtitle">All members in this group</div>
+        </div>
+      </div>
+      <div class="member-list">
+        
+        
+        <div class="member-item">
+          <div class="member-avatar" style="background: hsl(200 70% 46%);">
+            
+            MS
+            
+          </div>
+          <div class="member-details">
+            <div class="member-name">Mr. Smith</div>
+            <div class="member-role">Teacher</div>
+          </div>
+        </div>
+        
+        
+        <div class="member-item">
+          <div class="member-avatar" style="background: hsl(236 70% 46%);">
+            
+            JD
+            
+          </div>
+          <div class="member-details">
+            <div class="member-name">John Doe</div>
+            <div class="member-role">Student</div>
+          </div>
+        </div>
+        
+        
+        <div class="member-item">
+          <div class="member-avatar" style="background: hsl(168 70% 46%);">
+            
+            SJ
+            
+          </div>
+          <div class="member-details">
+            <div class="member-name">Sarah Johnson</div>
+            <div class="member-role">Student</div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-my-groups">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">My Groups</div>
+          <div class="sidebar-card-subtitle">Other groups you belong to</div>
+        </div>
+        <a href="http://localhost:5000/groups" class="view-all-link">View all</a>
+      </div>
+      <div class="group-list">
+        
+          
+          
+          <a class="group-link-card" href="http://localhost:5000/groups/2">
+            <span class="group-badge">
+              
+              MG
+              
+            </span>
+            <span>
+              <span class="group-link-name">Mathematics Grade 10 - Class Group</span>
+              <span class="group-link-meta">Course · 3 members</span>
+            </span>
+          </a>
+          
+          
+          <a class="group-link-card" href="http://localhost:5000/groups/3">
+            <span class="group-badge">
+              
+              PG
+              
+            </span>
+            <span>
+              <span class="group-link-name">Physics Fundamentals - Class Group</span>
+              <span class="group-link-meta">Course · 3 members</span>
+            </span>
+          </a>
+          
+          
+          <a class="group-link-card" href="http://localhost:5000/groups/4">
+            <span class="group-badge">
+              
+              EG
+              
+            </span>
+            <span>
+              <span class="group-link-name">English Literature - Class Group</span>
+              <span class="group-link-meta">Course · 1 members</span>
+            </span>
+          </a>
+          
+        
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-files">
+      <div class="sidebar-card-title-row">
+        <div>
+          <div class="sidebar-card-title">Group Files</div>
+          <div class="sidebar-card-subtitle">Latest attachments from this group</div>
+        </div>
+        <a href="http://localhost:5000/groups/1#" class="view-all-link">View all</a>
+      </div>
+      <div class="file-list" id="groupFileList">
+        
+          <div class="file-empty-state">No files shared yet.</div>
+        
+      </div>
+    </div>
+
+    <div class="sidebar-card sidebar-card-settings">
+      <div class="sidebar-card-title">Group Options</div>
+      <form method="POST" action="http://localhost:5000/groups/1/leave" onsubmit="return confirm(&#39;Leave this group permanently?&#39;);">
+        <button type="submit" class="btn btn-outline btn-sm leave-group-btn">Leave Group</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="./Python for Beginners - Class Group — Learn Together_files/socket.io.min.js.download" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatAttachment = document.getElementById('chatAttachment');
+const attachmentPreview = document.getElementById('attachmentPreview');
+const presenceSummary = document.getElementById('presenceSummary');
+const groupId = chatMessages?.dataset.groupId;
+const currentUserId = parseInt(chatMessages?.dataset.userId || '0', 10);
+const newMessageBadge = document.getElementById('newMessageBadge');
+let lastMessageId = 0;
+
+const socket = typeof io !== 'undefined' ? io() : null;
+if (socket && groupId) {
+  socket.on('connect', function() {
+    socket.emit('join', { groupId: parseInt(groupId, 10) });
+  });
+  window.addEventListener('beforeunload', function() {
+    socket.emit('leave', { groupId: parseInt(groupId, 10) });
+  });
+}
+
+function createToast(title, body) {
+  let existing = document.getElementById('chatToast');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'chatToast';
+    existing.className = 'chat-toast';
+    document.body.appendChild(existing);
+  }
+  existing.innerHTML = `
+    <div class="chat-toast-badge">📩 New message</div>
+    <div class="chat-toast-title">${title}</div>
+    <div class="chat-toast-body">${body}</div>
+  `;
+  existing.classList.add('show');
+  clearTimeout(createToast.timer);
+  createToast.timer = setTimeout(() => existing.classList.remove('show'), 4000);
+}
+
+function setUnreadCount(count) {
+  if (!newMessageBadge) return;
+  if (count > 0) {
+    newMessageBadge.textContent = count;
+    newMessageBadge.hidden = false;
+  } else {
+    newMessageBadge.hidden = true;
+  }
+}
+
+function addUnreadMessage() {
+  if (!newMessageBadge) return;
+  const current = parseInt(newMessageBadge.textContent || '0', 10) || 0;
+  setUnreadCount(current + 1);
+}
+
+function clearUnreadCount() {
+  setUnreadCount(0);
+}
+
+function showBrowserNotification(sender, message) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(`${sender} sent a message`, { body: message, icon: '/static/favicon.ico' });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function appendAttachmentMarkup(container, msg) {
+  if (!msg.attachment_url) return;
+  const attachmentWrap = document.createElement('div');
+  attachmentWrap.className = `msg-attachment attachment-${msg.attachment_type || 'file'}`;
+  if (msg.attachment_type === 'image') {
+    const img = document.createElement('img');
+    img.src = msg.attachment_url;
+    img.alt = msg.attachment_name || 'image';
+    attachmentWrap.appendChild(img);
+  } else if (msg.attachment_type === 'video') {
+    const video = document.createElement('video');
+    video.controls = true;
+    video.preload = 'metadata';
+    video.src = msg.attachment_url;
+    attachmentWrap.appendChild(video);
+  } else {
+    const link = document.createElement('a');
+    link.href = msg.attachment_url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'attachment-file';
+    link.innerHTML = `<span class="attachment-icon">📎</span><span>${msg.attachment_name || 'Attachment'}</span>`;
+    attachmentWrap.appendChild(link);
+  }
+  container.appendChild(attachmentWrap);
+}
+
+function renderMessage(msg) {
+  if (!chatMessages) return;
+  const emptyState = chatMessages.querySelector('.chat-empty-state');
+  if (emptyState) emptyState.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `chat-message${msg.sender_id === currentUserId ? ' own' : ''}`;
+  wrapper.dataset.msgId = msg.id;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.style.background = msg.sender_color || 'hsl(225 70% 55%)';
+  avatar.style.color = 'white';
+  if (msg.sender_avatar) {
+    avatar.innerHTML = `<img src="${msg.sender_avatar}" alt="${msg.sender} avatar" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`;
+  } else {
+    avatar.textContent = msg.sender_initials || msg.sender[0].toUpperCase();
+  }
+
+  const body = document.createElement('div');
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (msg.message) {
+    const text = document.createElement('div');
+    text.className = 'msg-text';
+    text.textContent = msg.message;
+    bubble.appendChild(text);
+  }
+  if (msg.attachment_url) {
+    appendAttachmentMarkup(bubble, msg);
+  }
+  if (msg.sender_id === currentUserId) {
+    bubble.style.borderRight = `3px solid ${msg.sender_color || 'hsl(225 70% 55%)'}`;
+  } else {
+    bubble.style.borderLeft = `3px solid ${msg.sender_color || 'hsl(225 70% 55%)'}`;
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  if (msg.sender_id !== currentUserId) {
+    const senderEl = document.createElement('span');
+    senderEl.textContent = msg.sender;
+    senderEl.style.color = msg.sender_color || 'var(--navy)';
+    senderEl.style.fontWeight = '600';
+    meta.appendChild(senderEl);
+    meta.appendChild(document.createTextNode(' · '));
+  }
+  const timeEl = document.createElement('span');
+  timeEl.textContent = msg.timestamp;
+  meta.appendChild(timeEl);
+
+  body.appendChild(bubble);
+  body.appendChild(meta);
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(body);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function updateLastMessageId() {
+  const messageNodes = chatMessages?.querySelectorAll('.chat-message[data-msg-id]') || [];
+  if (messageNodes.length) {
+    lastMessageId = Math.max(...Array.from(messageNodes).map(node => parseInt(node.dataset.msgId || '0', 10)));
+  }
+}
+
+function updateGroupFileList(message) {
+  if (!message?.attachment_url) return;
+  const fileList = document.getElementById('groupFileList');
+  if (!fileList) return;
+  const item = document.createElement('a');
+  item.className = 'file-item';
+  item.href = message.attachment_url;
+  item.target = '_blank';
+  item.rel = 'noopener';
+  item.innerHTML = `
+    <span class="file-icon ${attachmentIconClass(message.attachment_name, message.attachment_type)}">${attachmentIconLabel(message.attachment_name, message.attachment_type)}</span>
+    <span class="file-info">
+      <span class="file-name">${message.attachment_name || 'Attachment'}</span>
+      <span class="file-meta">${attachmentMetaLabel(message.attachment_name, message.attachment_type)}</span>
+    </span>
+  `;
+  const existingEmpty = fileList.querySelector('.file-empty-state');
+  if (existingEmpty) {
+    existingEmpty.remove();
+  }
+  fileList.appendChild(item);
+  if (fileList.children.length > 5) {
+    fileList.removeChild(fileList.firstChild);
+  }
+}
+
+function attachmentIconLabel(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (attachmentType === 'image') return 'IMG';
+  if (attachmentType === 'video') return 'VID';
+  if (extension) return extension.toUpperCase();
+  return 'FILE';
+}
+
+function attachmentIconClass(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (extension === 'pdf') return 'file-icon-pdf';
+  if (['doc', 'docx'].includes(extension)) return 'file-icon-doc';
+  if (['ppt', 'pptx'].includes(extension)) return 'file-icon-ppt';
+  if (['xls', 'xlsx'].includes(extension)) return 'file-icon-xls';
+  if (['py', 'js', 'ts', 'java', 'c', 'cpp', 'rb', 'go', 'php'].includes(extension)) return 'file-icon-code';
+  if (attachmentType === 'image') return 'file-icon-image';
+  if (attachmentType === 'video') return 'file-icon-video';
+  return 'file-icon-file';
+}
+
+function attachmentMetaLabel(filename, attachmentType) {
+  const extension = filename?.split('.').pop()?.toLowerCase() || '';
+  if (attachmentType === 'image') return 'Image';
+  if (attachmentType === 'video') return 'Video';
+  if (extension === 'pdf') return 'PDF';
+  if (['doc', 'docx'].includes(extension)) return 'Word file';
+  if (['ppt', 'pptx'].includes(extension)) return 'Presentation';
+  if (['xls', 'xlsx'].includes(extension)) return 'Spreadsheet';
+  if (['py', 'js', 'ts', 'java', 'c', 'cpp', 'rb', 'go', 'php'].includes(extension)) return 'Code file';
+  if (extension) return `${extension.toUpperCase()} file`;
+  return 'Attachment';
+}
+
+document.addEventListener('click', function(event) {
+  const toggle = event.target.closest('.msg-menu-toggle');
+  if (toggle) {
+    const menu = toggle.closest('.msg-menu').querySelector('.msg-actions-menu');
+    document.querySelectorAll('.msg-actions-menu.show').forEach(existing => {
+      if (existing !== menu) existing.classList.remove('show');
+    });
+    menu.classList.toggle('show');
+    event.stopPropagation();
+    return;
+  }
+  document.querySelectorAll('.msg-actions-menu.show').forEach(menu => menu.classList.remove('show'));
+});
+
+function loadNewMessages() {
+  if (!groupId) return;
+  fetch(`/api/groups/${groupId}/messages?after=${lastMessageId}`)
+    .then(res => res.json())
+    .then(messages => {
+      if (!messages.length) return;
+      messages.forEach(msg => {
+        renderMessage(msg);
+        updateGroupFileList(msg);
+        if (msg.sender_id !== currentUserId) {
+          if (document.hidden) {
+            addUnreadMessage();
+          }
+          createToast(msg.sender, msg.message || (msg.attachment_name || 'shared an attachment'));
+          showBrowserNotification(msg.sender, msg.message || (msg.attachment_name || 'shared an attachment'));
+        }
+        lastMessageId = Math.max(lastMessageId, msg.id);
+      });
+    })
+    .catch(() => {});
+}
+
+chatAttachment?.addEventListener('change', function() {
+  if (attachmentPreview && this.files && this.files[0]) {
+    const file = this.files[0];
+    attachmentPreview.innerHTML = `
+      <div class="attachment-preview-item">
+        <span class="attachment-name">${file.name}</span>
+        <button type="button" class="attachment-remove-btn" title="Remove attachment">✕</button>
+      </div>
+    `;
+    const removeBtn = attachmentPreview.querySelector('.attachment-remove-btn');
+    removeBtn?.addEventListener('click', function() {
+      if (chatAttachment) chatAttachment.value = '';
+      if (attachmentPreview) attachmentPreview.innerHTML = '';
+    });
+  } else if (attachmentPreview) {
+    attachmentPreview.textContent = '';
+  }
+});
+
+chatForm?.addEventListener('submit', function(e) {
+  e.preventDefault();
+  if (!chatInput || (!chatInput.value.trim() && !chatAttachment?.files?.length)) return;
+  const formData = new FormData(chatForm);
+  fetch(chatForm.action, {
+    method: 'POST',
+    body: formData,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.message) {
+        renderMessage(data.message);
+        updateGroupFileList(data.message);
+        lastMessageId = Math.max(lastMessageId, data.message.id);
+      }
+      chatInput.value = '';
+      if (chatAttachment) chatAttachment.value = '';
+        if (attachmentPreview) attachmentPreview.innerHTML = '';
+        if (attachmentPreview) attachmentPreview.innerHTML = '';
+    })
+    .catch(() => {
+      chatForm.submit();
+    });
+});
+
+chatInput?.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    chatForm?.dispatchEvent(new Event('submit', { cancelable: true }));
+  }
+});
+
+window.addEventListener('focus', clearUnreadCount);
+window.addEventListener('visibilitychange', function() {
+  if (!document.hidden) {
+    clearUnreadCount();
+  }
+});
+
+updateLastMessageId();
+setInterval(loadNewMessages, 3000);
+window.addEventListener('load', () => {
+  loadNewMessages();
+});
+</script>
+
+    </div>
+  </div>
+
+
+
+<div id="sidebarOverlay" onclick="document.querySelector(&#39;.sidebar&#39;).classList.remove(&#39;open&#39;);document.getElementById(&#39;sidebarOverlay&#39;).classList.remove(&#39;show&#39;);"></div>
+
+<script src="./Python for Beginners - Class Group — Learn Together_files/main.js.download"></script>
+
+
+</div></body></html>

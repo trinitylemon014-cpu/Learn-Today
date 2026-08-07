@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Application Page Settings — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Application Status Page</h2>
+    <p>Manage the content applicants see after submission.</p>
+  </div>
+  <a href="{{ url_for('admin_users') }}" class="btn btn-outline btn-sm">← Back to users</a>
+</div>
+
+<div class="card">
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label class="form-label">Headline</label>
+      <input type="text" name="headline" class="form-control" value="{{ config.headline }}" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subtitle</label>
+      <input type="text" name="subtitle" class="form-control" value="{{ config.subtitle }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Main text</label>
+      <textarea name="main_text" class="form-control" rows="4">{{ config.main_text }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Details text</label>
+      <textarea name="details_text" class="form-control" rows="4">{{ config.details_text }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Promo text</label>
+      <textarea name="promo_text" class="form-control" rows="3">{{ config.promo_text }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Footer text</label>
+      <textarea name="footer_text" class="form-control" rows="3">{{ config.footer_text }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Banner image</label>
+      <input type="file" name="banner_image" class="form-control">
+      <div class="form-hint">Optional image shown on the application status page.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save page settings</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}Calendar{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Calendar</h2>
+    <p>See your classes, meetings, and deadlines in one place.</p>
+  </div>
+</div>
+
+<div class="calendar-shell">
+  <div class="calendar-panel" style="padding:24px;">
+    <div class="flex-between" style="margin-bottom:12px;">
+      <h3>{{ month_label }}</h3>
+      <div class="flex gap-2">
+        <a href="{{ url_for('calendar_view', date=prev_date.strftime('%Y-%m-%d')) }}" class="btn btn-outline btn-sm">←</a>
+        <a href="{{ url_for('calendar_view', date=today_date.strftime('%Y-%m-%d')) }}" class="btn btn-outline btn-sm">Today</a>
+        <a href="{{ url_for('calendar_view', date=next_date.strftime('%Y-%m-%d')) }}" class="btn btn-outline btn-sm">→</a>
+      </div>
+    </div>
+
+    <div class="calendar-grid">
+      {% for week in month_days %}
+        {% for day in week %}
+          {% if day == 0 %}
+            <div class="calendar-day" style="opacity:.3"></div>
+          {% else %}
+            {% set day_events_for_day = day_events.get(day, []) %}
+            <a href="{{ url_for('calendar_view', date=selected_date.replace(month=selected_date.month, day=day).strftime('%Y-%m-%d')) }}" class="calendar-day {% if day == selected_date.day %}active{% endif %}">
+              <div class="day-number">{{ day }}</div>
+              {% for event in day_events_for_day[:2] %}
+              <div class="day-event">{{ event.title }}</div>
+              {% endfor %}
+            </a>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:8px;">Events for {{ selected_date.strftime('%B %d, %Y') }}</h3>
+      <p>Choose a day from the calendar to view its schedule.</p>
+      <div class="calendar-events">
+        {% if selected_events %}
+          {% for event in selected_events %}
+          <div class="calendar-event-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <strong>{{ event.title }}</strong>
+              <span class="badge badge-{{ 'blue' if event.type == 'meeting' else 'purple' if event.type == 'goal' else 'green' if event.type == 'reminder' else 'gray' }}" style="font-size:12px;padding:4px 8px;">{{ event.type|capitalize }}</span>
+            </div>
+            <small>{{ event.time }}{% if event.end_at %} – {{ event.end_at }}{% endif %} • {{ event.location or 'No location' }}</small>
+            {% if event.description %}
+            <p style="margin:10px 0 0;color:var(--gray-600);line-height:1.5;">{{ event.description }}</p>
+            {% endif %}
+            {% if event.reminder_for %}
+            <div style="margin-top:10px;font-size:13px;color:var(--gray-500);">Reminder: {{ event.reminder_for }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="card-sm" style="background:var(--gray-50); border:1px solid var(--gray-200);">
+            No events scheduled for this day yet.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:8px;">Schedule an Event</h3>
+      <p>Create a reminder, goal, or appointment and get notified before it starts.</p>
+      <form action="{{ url_for('calendar_view', date=selected_date.strftime('%Y-%m-%d')) }}" method="POST">
+        <div class="form-group">
+          <label class="form-label">Event Title</label>
+          <input type="text" name="title" class="form-control" placeholder="Project deadline, exam review, meeting..." required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Event Type</label>
+          <select name="event_type" class="form-control">
+            <option value="goal">Goal</option>
+            <option value="reminder">Reminder</option>
+            <option value="meeting">Meeting</option>
+            <option value="task">Task</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Start Date & Time</label>
+          <input type="datetime-local" name="start_at" class="form-control" value="{{ selected_date.strftime('%Y-%m-%d') }}T09:00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date & Time</label>
+          <input type="datetime-local" name="end_at" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reminder Time</label>
+          <input type="datetime-local" name="reminder_at" class="form-control">
+          <div class="form-hint">Optional: choose when you want to be reminded before the event.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <input type="text" name="location" class="form-control" placeholder="Online, Room 12, etc.">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-control" rows="4" placeholder="Add notes, agenda items, or goals..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Save Event</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

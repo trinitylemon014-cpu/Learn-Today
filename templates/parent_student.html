@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}{{ student.name }}'s Progress — Learn Together{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('dashboard') }}" style="color:var(--blue)">Dashboard</a>
+  <span>›</span>
+  <span>{{ student.name }}'s Report</span>
+</div>
+
+<div class="welcome-banner" style="margin-bottom:28px">
+  <div class="welcome-text">
+    <div class="section-heading" style="margin-bottom:8px">
+      <div class="section-heading-icon orange"><span class="svg-icon icon-courses-list icon-lg"></span></div>
+      <h3 style="margin:0">{{ student.name }}'s Learning Report</h3>
+    </div>
+    <p>Full overview of progress, attendance, and recent activity</p>
+  </div>
+</div>
+
+<div class="grid-3-1">
+  <div>
+    <!-- Course Progress -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="section-heading">
+        <div class="section-heading-icon"><span class="svg-icon icon-courses icon-lg"></span></div>
+        <h4 style="margin:0">Course Progress</h4>
+      </div>
+      {% if courses %}
+      <div style="display:flex;flex-direction:column;gap:14px">
+        {% for course in courses %}
+        <div>
+          <div class="flex-between" style="margin-bottom:6px">
+            <span style="font-weight:600;color:var(--navy);font-size:14px">{{ course.title }}</span>
+            <span style="font-weight:800;color:var(--navy)">{{ progress_map.get(course.id, 0) }}%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-bar {% if progress_map.get(course.id, 0) >= 70 %}{% elif progress_map.get(course.id, 0) >= 40 %}blue{% else %}purple{% endif %}"
+                 data-width="{{ progress_map.get(course.id, 0) }}" style="width:0"></div>
+          </div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:4px">{{ course.teacher.name }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted">Not enrolled in any courses yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Attendance -->
+    <div class="card">
+      <div class="section-heading">
+        <div class="section-heading-icon green"><span class="svg-icon icon-attendance icon-lg"></span></div>
+        <h4 style="margin:0">Attendance by Course</h4>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Course</th><th>Attendance Rate</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for d in attendance_data %}
+            <tr>
+              <td><strong>{{ d.course.title[:28] }}</strong></td>
+              <td>
+                <div class="flex gap-2" style="align-items:center">
+                  <div class="progress-wrap" style="flex:1">
+                    <div class="progress-bar" style="width:{{ d.rate }}%"></div>
+                  </div>
+                  <span style="font-weight:700;min-width:36px">{{ d.rate }}%</span>
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-{{ 'green' if d.rate >= 80 else 'orange' if d.rate >= 50 else 'red' }}">
+                  {{ 'Excellent' if d.rate >= 80 else 'Average' if d.rate >= 50 else 'Poor' }}
+                </span>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" style="text-align:center;color:var(--gray-400)">No attendance data yet</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card" style="text-align:center">
+      <div class="user-avatar" style="width:60px;height:60px;font-size:24px;margin:0 auto 12px">{{ student.name[0].upper() }}</div>
+      <h4>{{ student.name }}</h4>
+      <span class="badge badge-blue">Student</span>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+        <div class="flex-between" style="font-size:13px">
+          <span style="color:var(--gray-500)">Courses</span>
+          <strong>{{ courses|length }}</strong>
+        </div>
+        <div class="flex-between" style="font-size:13px">
+          <span style="color:var(--gray-500)">Avg Progress</span>
+          <strong style="color:var(--green)">{{ ((progress_map.values()|list|sum) / (progress_map|length) if progress_map else 0)|round(1) }}%</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-heading">
+        <div class="section-heading-icon purple"><span class="svg-icon icon-analytics icon-lg"></span></div>
+        <h5 style="margin:0">Recent Activity</h5>
+      </div>
+      {% for log in recent %}
+      <div class="flex gap-2" style="padding:7px 0;border-bottom:1px solid var(--gray-100);align-items:flex-start">
+        <div class="student-activity-icon"><span class="svg-icon {{ 'icon-video' if log.action == 'viewed' else 'icon-success' }}"></span></div>
+        <div>
+          <div style="font-size:12.5px;font-weight:600;color:var(--gray-700)">
+            {{ log.action|capitalize }}: {{ log.content.title[:25] if log.content else 'content' }}
+          </div>
+          <div style="font-size:11px;color:var(--gray-400)">{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</div>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-muted text-sm">No recent activity recorded.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

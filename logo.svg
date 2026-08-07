@@ -1,0 +1,21 @@
+<svg width="240" height="64" viewBox="0 0 240 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="64" rx="20" fill="url(#bg)"/>
+  <rect x="8" y="8" width="48" height="48" rx="14" fill="white" fill-opacity="0.95"/>
+  <path d="M24 18.5V45.5" stroke="#2563EB" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M16 22L24 16L32 22" stroke="#10B981" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M18 29H30" stroke="#7C3AED" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M18 35.5H28" stroke="#2563EB" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M70 18C70 15.24 72.24 13 75 13H96C98.76 13 101 15.24 101 18V46C101 48.76 98.76 51 96 51H75C72.24 51 70 48.76 70 46V18Z" fill="white" fill-opacity="0.14" stroke="white" stroke-opacity="0.8" stroke-width="2"/>
+  <path d="M78 23H93" stroke="white" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M78 31H91" stroke="white" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M78 39H87" stroke="white" stroke-width="2.6" stroke-linecap="round"/>
+  <text x="116" y="39" fill="white" font-size="24" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-0.5">Learn</text>
+  <text x="183" y="39" fill="#34D399" font-size="24" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-0.5">Together</text>
+  <defs>
+    <linearGradient id="bg" x1="12" y1="6" x2="228" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F1F3D"/>
+      <stop offset="0.5" stop-color="#1E3A6E"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+</svg>

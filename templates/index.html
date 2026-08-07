@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% block title %}Learn Together — Learn. Connect. Grow.{% endblock %}
+
+{% block public_content %}
+<div class="landing-shell">
+  <nav class="public-nav">
+    <div class="public-nav-logo">
+      <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-nav">
+      <span>Learn Together</span>
+    </div>
+    <div class="public-nav-links">
+      <a href="{{ url_for('index') }}">Home</a>
+      <a href="{{ url_for('courses') }}">Courses</a>
+      <a href="#features">Features</a>
+      <a href="#about">About</a>
+    </div>
+    <div class="public-nav-actions">
+      <a href="{{ url_for('login') }}" class="btn btn-outline">Log in</a>
+      <a href="{{ url_for('register') }}" class="btn btn-primary">Sign up free</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-content">
+      <span class="hero-eyebrow">Next-generation learning platform for modern classrooms</span>
+      <h1>Learn Together, <span>grow together.</span></h1>
+      <p class="hero-copy">A refined education toolkit for teachers, students, and parents. Structured courses, collaborative spaces, and analytics designed for real learning outcomes.</p>
+      <div class="hero-actions">
+        <a href="{{ url_for('register') }}" class="btn btn-green btn-lg">Get started free</a>
+        <a href="{{ url_for('courses') }}" class="btn btn-outline btn-lg hero-btn">Browse courses</a>
+      </div>
+      <div class="hero-features">
+        <div class="hero-feature">
+          <span class="hero-feature-icon">01</span>
+          <div>
+            <div class="hero-feature-title">Smart learning paths</div>
+            <div class="hero-feature-desc">Track progress and stay on top of every course.</div>
+          </div>
+        </div>
+        <div class="hero-feature">
+          <span class="hero-feature-icon">02</span>
+          <div>
+            <div class="hero-feature-title">Collaborative groups</div>
+            <div class="hero-feature-desc">Connect with classmates and teachers in real time.</div>
+          </div>
+        </div>
+        <div class="hero-feature">
+          <span class="hero-feature-icon">03</span>
+          <div>
+            <div class="hero-feature-title">Insightful analytics</div>
+            <div class="hero-feature-desc">Measure attendance, progress, and course performance.</div>
+          </div>
+        </div>
+        <div class="hero-feature">
+          <span class="hero-feature-icon">04</span>
+          <div>
+            <div class="hero-feature-title">Parent visibility</div>
+            <div class="hero-feature-desc">Give parents transparent updates on student progress.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-illustration">
+      <div class="hero-video-wrapper hero-video-full">
+        <video id="heroVideo" class="hero-video" autoplay loop muted playsinline controls>
+          <source src="{{ url_for('static', filename='videos/LMS.mp4') }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <div class="hero-video-toolbar">
+          <div>
+            <div class="hero-video-title">LMS Platform Preview</div>
+            <div class="hero-video-subtitle">Autoplay demo — sound is off by default.</div>
+          </div>
+          <button id="videoSoundToggle" type="button" class="btn btn-outline btn-sm">Enable sound</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-surface section-features" id="features">
+    <div class="section-headline">
+      <span>Features</span>
+      <h2>Everything you need to learn</h2>
+      <p>A complete ecosystem for education, collaboration, and growth.</p>
+    </div>
+    <div class="feature-grid">
+      {% set features = [
+        ('L','Course Management','Create and manage structured courses with videos, notes, and presentations. Track student progress automatically.','blue'),
+        ('C','Real-time Group Chat','Connect through course groups and study teams. Share resources, pin messages, and collaborate.','purple'),
+        ('A','Smart Analytics','Deep insights into student engagement, attendance, completion rates, and performance trends.','green'),
+        ('P','Parent Portal','Parents get full visibility into their child\'s learning journey, attendance, and performance.','orange'),
+        ('T','Attendance Tracking','Login-based and session-based attendance systems with detailed reports.','blue'),
+        ('M','Admin Control','Comprehensive admin panel to manage users, courses, and platform health.','purple'),
+      ] %}
+      {% for icon, title, desc, color in features %}
+      <div class="card feature-card" style="border-top:3px solid var(--{{ color }})">
+        <div class="feature-card-icon">{{ icon }}</div>
+        <h4>{{ title }}</h4>
+        <p>{{ desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if courses %}
+  <section class="section-surface section-courses">
+    <div class="section-headline">
+      <h2>Courses Offered</h2>
+      <p>Only the active courses offered by Learn Together are shown here.</p>
+    </div>
+    <div class="course-grid">
+      {% for course in courses %}
+      <div class="course-card">
+        <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
+          {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
+            <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
+          {% elif course.thumbnail %}
+            <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
+          {% else %}
+            <span style="position:relative;z-index:1;font-size:52px">
+              <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+            </span>
+          {% endif %}
+        </div>
+        <div class="course-card-body">
+          <div class="course-card-category">{{ course.category or 'General' }}</div>
+          <div class="course-card-title">{{ course.title }}</div>
+          <div class="course-card-desc">{{ course.description[:80] + '…' if course.description and course.description|length > 80 else course.description }}</div>
+          <div class="course-card-meta">
+            <span class="course-meta-item">Instructor: {{ course.teacher.name }}</span>
+            <span class="badge badge-{{ 'green' if course.level == 'beginner' else 'blue' if course.level == 'intermediate' else 'purple' }}">{{ course.level|capitalize }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="section-action">
+      <a href="{{ url_for('courses') }}" class="btn btn-primary btn-lg">View all courses</a>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="section-surface section-about" id="about">
+    <div class="about-grid">
+      <div class="about-copy">
+        <span>About Learn Together</span>
+        <h2>Designed to support every role in the learning journey.</h2>
+        <p>From students navigating their courses to teachers managing content and parents monitoring progress, Learn Together brings clarity, structure, and better outcomes.</p>
+      </div>
+      <div class="about-cards">
+        <div class="about-card">
+          <h4>Teacher-first workflows</h4>
+          <p>Build lessons, publish assignments, and review progress from one modern dashboard.</p>
+        </div>
+        <div class="about-card">
+          <h4>Student engagement</h4>
+          <p>Keep learners motivated with progress milestones, group interaction, and real-time feedback.</p>
+        </div>
+        <div class="about-card">
+          <h4>Parent transparency</h4>
+          <p>Parents gain confidence with attendance reports, grades, and course activity overviews.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-cta">
+    <div class="cta-inner">
+      <h2>Ready to start learning?</h2>
+      <p>Join thousands of students and teachers already using Learn Together.</p>
+      <div class="cta-actions">
+        <a href="{{ url_for('register') }}" class="btn btn-green btn-lg">Create free account</a>
+        <a href="{{ url_for('login') }}" class="btn btn-outline btn-lg hero-btn">Log in</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <div class="landing-brand">Learn<span>Together</span></div>
+    <div>© 2030 Learn Together. Built for the future of education. Built by Emtrixz Technology Company.</div>
+  </footer>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('heroVideo');
+    const toggle = document.getElementById('videoSoundToggle');
+    if (video && toggle) {
+      toggle.addEventListener('click', function() {
+        video.muted = !video.muted;
+        toggle.textContent = video.muted ? 'Enable sound' : 'Mute video';
+      });
+      if (video.muted) {
+        toggle.textContent = 'Enable sound';
+      }
+    }
+  });
+</script>
+{% endblock %}

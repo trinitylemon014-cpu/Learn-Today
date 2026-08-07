@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Manage Courses — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2> Course Management</h2>
+    <p>Overview of all platform courses</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Course</th>
+          <th>Teacher</th>
+          <th>Category</th>
+          <th>Level</th>
+          <th>Students</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in courses %}
+        <tr>
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+              <strong>{{ c.title }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-600)">{{ c.teacher.name }}</td>
+          <td><span class="badge badge-purple">{{ c.category or '—' }}</span></td>
+          <td><span class="badge badge-{{ 'green' if c.level == 'beginner' else 'blue' if c.level == 'intermediate' else 'purple' }}">{{ c.level|capitalize }}</span></td>
+          <td><span class="badge badge-blue">{{ c.enrollments|length }}</span></td>
+          <td style="color:var(--gray-400)">{{ c.created_at.strftime('%b %d, %Y') }}</td>
+          <td>
+            <div class="flex gap-2">
+              <a href="{{ url_for('course_detail', course_id=c.id) }}" class="btn btn-outline btn-sm">View</a>
+              <a href="{{ url_for('analytics', course_id=c.id) }}" class="btn btn-primary btn-sm"><span class="svg-icon icon-analytics" aria-hidden="true"></span></a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

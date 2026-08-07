@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Schedule Meeting — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><span class="svg-icon icon-calendar" aria-hidden="true"></span> Schedule Video Meeting</h2>
+  <p>Create a scheduled meeting link for {{ course.title }}</p>
+</div>
+
+<div class="page-shell">
+  <div class="auth-container schedule-lesson-layout">
+    <div class="auth-form-wrapper">
+      <div class="auth-card">
+        <div class="schedule-lesson-header">
+          <h3 class="schedule-lesson-title">Schedule your live lesson</h3>
+          <p class="schedule-lesson-copy">Keep the same clean form experience while previewing your Vidtrixz meeting design.</p>
+        </div>
+
+        <div class="meeting-preview-box">
+          <div class="meeting-preview-header">Form Preview</div>
+          <div class="meeting-preview-inner">
+            <img src="{{ url_for('static', filename='bb.png') }}" alt="Vidtrixz form preview">
+          </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+          <div class="form-group">
+            <label class="form-label">Meeting Title</label>
+            <input type="text" name="title" class="form-control" placeholder="e.g. Introduction to Python" required>
+            <div class="form-hint">A brief title for the video meeting.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description (optional)</label>
+            <textarea name="description" class="form-control" placeholder="What will be covered in this meeting?" rows="3"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Video Meeting Link</label>
+            <input type="url" name="meet_link" class="form-control" placeholder="https://vidtrixz.com/meeting/abc123" required>
+            <div class="form-hint">Paste your Vidtrixz or other video meeting platform link here.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Lesson Poster (optional)</label>
+            <input type="file" name="poster_file" accept="image/*" class="form-control">
+            <div class="form-hint">Upload a poster image for the lesson card. Recommended size 1200×675.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Schedule Date & Time (optional)</label>
+            <input type="datetime-local" name="scheduled_at" class="form-control">
+            <div class="form-hint">When will this meeting take place? Leave blank if it's already available.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" name="notify_group" value="on">
+              <span>Notify group members about this meeting</span>
+            </label>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="submit" class="btn btn-primary btn-lg">Schedule Meeting →</button>
+            <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-outline btn-lg">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="auth-image-wrapper schedule-lesson-image">
+      <img src="{{ url_for('static', filename='cc.png') }}" alt="Schedule lesson poster" class="auth-image">
+      <div class="auth-image-overlay schedule-lesson-overlay">
+        <div class="auth-image-text">
+          <h3>Live Lesson Ready</h3>
+          <p>Use the right-side poster to highlight your Vidtrixz session while keeping the form front and center.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

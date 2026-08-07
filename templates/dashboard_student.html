@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Learn Together{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+  <div class="welcome-text">
+    <div class="section-heading" style="margin-bottom:8px">
+      <div class="section-heading-icon"><span class="svg-icon icon-dashboard icon-lg"></span></div>
+      <h3 style="margin:0">Welcome back, {{ current_user.name }}!</h3>
+    </div>
+    <p>Let's continue learning today. You have {{ courses|length }} active courses.</p>
+  </div>
+  <div style="position:relative;z-index:1">
+    <a href="{{ url_for('courses') }}" class="btn btn-green">Browse Courses →</a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-icon blue"><span class="svg-icon icon-courses"></span></div>
+    <div class="stat-value">{{ courses|length }}</div>
+    <div class="stat-label">Enrolled Courses</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon green"><span class="svg-icon icon-success"></span></div>
+    <div class="stat-value">{{ completed }}</div>
+    <div class="stat-label">Completed Courses</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon purple"><span class="svg-icon icon-groups"></span></div>
+    <div class="stat-value">{{ groups|length }}</div>
+    <div class="stat-label">Study Groups</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon orange"><span class="svg-icon icon-analytics"></span></div>
+    <div class="stat-value">{{ recent_activity|length * 2 }}h</div>
+    <div class="stat-label">Hours Learned</div>
+  </div>
+</div>
+
+<div class="grid-3-1">
+  <!-- My Courses -->
+  <div>
+    <div class="flex-between mb-4">
+      <h4>My Courses</h4>
+      <a href="{{ url_for('courses') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+    {% if courses %}
+    <div style="display:flex;flex-direction:column;gap:14px">
+      {% for course in courses %}
+      {% set prog = progress_list | selectattr('course_id', 'eq', course.id) | first %}
+      <div class="card card-sm">
+        <div class="flex-between mb-4">
+          <div class="flex gap-3" style="align-items:center">
+            <div class="student-course-icon">
+              <span class="svg-icon {{ 'icon-analytics' if 'math' in course.title.lower() else 'icon-courses' }}"></span>
+            </div>
+            <div>
+              <div style="font-weight:700;color:var(--navy);font-size:14px">{{ course.title }}</div>
+              <div style="font-size:12px;color:var(--gray-400)">{{ course.teacher.name }}</div>
+            </div>
+          </div>
+          <span style="font-weight:800;color:var(--navy);font-size:1.1rem">{{ prog.progress_percent if prog else 0 }}%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" data-width="{{ prog.progress_percent if prog else 0 }}" style="width:0"></div>
+        </div>
+        <div class="flex-between" style="margin-top:10px">
+          <span class="badge badge-{{ 'green' if (prog.progress_percent if prog else 0) >= 70 else 'blue' if (prog.progress_percent if prog else 0) >= 30 else 'gray' }}">
+            {{ 'On Track' if (prog.progress_percent if prog else 0) >= 50 else 'Getting Started' }}
+          </span>
+          <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-primary btn-sm">Continue →</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty-state">
+      <div class="empty-state-icon"><span class="svg-icon icon-courses icon-xl"></span></div>
+      <h4>No courses yet</h4>
+      <p>Browse our course catalog to start learning!</p>
+      <a href="{{ url_for('courses') }}" class="btn btn-primary" style="margin-top:14px">Browse Courses</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar: Activity + Groups -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="card">
+      <div class="section-heading">
+        <div class="section-heading-icon green"><span class="svg-icon icon-analytics icon-lg"></span></div>
+        <h5 style="margin:0">Recent Activity</h5>
+      </div>
+      {% if recent_activity %}
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {% for log in recent_activity %}
+        <div class="flex gap-2" style="align-items:flex-start">
+          <div class="student-activity-icon"><span class="svg-icon {{ 'icon-video' if log.action == 'viewed' else 'icon-success' }}"></span></div>
+          <div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--gray-700)">
+              {{ log.action|capitalize }} {{ log.content.title[:30] + '…' if log.content and log.content.title|length > 30 else (log.content.title if log.content else 'content') }}
+            </div>
+            <div style="font-size:11px;color:var(--gray-400)">{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted text-sm">No recent activity. Start a course!</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="flex-between mb-4">
+        <div class="section-heading" style="margin-bottom:0">
+          <div class="section-heading-icon purple"><span class="svg-icon icon-groups icon-lg"></span></div>
+          <h5 style="margin:0">My Groups</h5>
+        </div>
+        <a href="{{ url_for('groups') }}" class="text-blue text-sm font-bold">View All</a>
+      </div>
+      {% if groups %}
+      <div style="display:flex;flex-direction:column;gap:8px">
+        {% for gm in groups[:4] %}
+        {% set group_identity = identity_for_group(gm.group) %}
+        <a href="{{ url_for('group_detail', group_id=gm.group_id) }}" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;transition:background .15s" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+          <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:linear-gradient(135deg, {{ group_identity.color }}, var(--navy));color:white;overflow:hidden">
+            {% if group_identity.avatar_url %}
+            <img src="{{ group_identity.avatar_url }}" alt="{{ gm.group.name }} avatar" style="width:100%;height:100%;object-fit:cover;display:block">
+            {% else %}
+            {{ group_identity.initials }}
+            {% endif %}
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">{{ gm.group.name[:28] + '…' if gm.group.name|length > 28 else gm.group.name }}</div>
+            <div style="font-size:11px;color:var(--gray-400)">{{ gm.group.members|length }} members</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted text-sm">Join a group to collaborate!</p>
+      <a href="{{ url_for('groups') }}" class="btn btn-outline btn-sm" style="margin-top:8px">Find Groups</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

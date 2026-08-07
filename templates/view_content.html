@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}{{ content.title }} — Learn Together{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('courses') }}" style="color:var(--blue)">Courses</a>
+  <span>›</span>
+  <a href="{{ url_for('course_detail', course_id=course.id) }}" style="color:var(--blue)">{{ course.title }}</a>
+  <span>›</span>
+  <span>{{ content.title }}</span>
+</div>
+
+<div class="grid-3-1">
+  <!-- Content Viewer -->
+  <div>
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:20px">
+        <div>
+          <div class="flex gap-2" style="align-items:center;margin-bottom:8px">
+            {% if content.content_type == 'video' %}
+              <span class="svg-icon icon-video icon-lg" aria-hidden="true"></span>
+            {% elif content.content_type == 'presentation' %}
+              <span class="svg-icon icon-presentation icon-lg" aria-hidden="true"></span>
+            {% else %}
+              <span class="svg-icon icon-note icon-lg" aria-hidden="true"></span>
+            {% endif %}
+            <span class="badge badge-{{ 'red' if content.content_type == 'video' else 'purple' if content.content_type == 'presentation' else 'blue' }}">{{ content.content_type|capitalize }}</span>
+          </div>
+          <h3>{{ content.title }}</h3>
+        </div>
+      </div>
+
+      {% if content.content_type == 'video' and content.content_url %}
+        {% if content.content_url.startswith('/static/') %}
+          <video controls style="width:100%;max-height:480px;border-radius:var(--r-md);margin-bottom:18px">
+            <source src="{{ content.content_url }}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        {% elif 'youtube.com' in content.content_url or 'youtu.be' in content.content_url %}
+          {% set video_id = content.content_url.split('v=')[-1].split('&')[0] if 'v=' in content.content_url else content.content_url.split('/')[-1] %}
+          <div style="position:relative;padding-bottom:56.25%;height:0;border-radius:var(--r-md);overflow:hidden;margin-bottom:20px;background:black">
+            <iframe src="https://www.youtube.com/embed/{{ video_id }}" style="position:absolute;top:0;left:0;width:100%;height:100%" frameborder="0" allowfullscreen></iframe>
+          </div>
+        {% else %}
+          <div style="padding:40px;text-align:center;background:var(--gray-50);border-radius:var(--r-md);margin-bottom:20px">
+            <span class="svg-icon icon-video icon-xl" aria-hidden="true" style="margin-bottom:14px;"></span>
+            <a href="{{ content.content_url }}" target="_blank" class="btn btn-primary">Open Video →</a>
+          </div>
+        {% endif %}
+      {% elif content.content_type == 'presentation' and content.content_url %}
+        {% if content.content_url.startswith('/static/') and content.content_url.endswith('.pdf') %}
+        <iframe src="{{ content.content_url }}" style="width:100%;min-height:600px;border:0;border-radius:var(--r-md);margin-bottom:20px"></iframe>
+        {% else %}
+        <div style="padding:40px;text-align:center;background:var(--purple-bg);border-radius:var(--r-md);margin-bottom:20px">
+          <span class="svg-icon icon-presentation icon-xl" aria-hidden="true" style="margin-bottom:14px;"></span>
+          <p style="color:var(--gray-500);margin-bottom:14px">Click to open the presentation</p>
+          <a href="{{ content.content_url }}" target="_blank" class="btn btn-purple">Open Presentation →</a>
+        </div>
+        {% endif %}
+      {% elif content.content_type == 'document' and content.content_url %}
+        {% if content.content_url.startswith('/static/') and content.content_url.endswith('.pdf') %}
+        <iframe src="{{ content.content_url }}" style="width:100%;min-height:600px;border:0;border-radius:var(--r-md);margin-bottom:20px"></iframe>
+        {% else %}
+        <div style="padding:40px;text-align:center;background:var(--gray-50);border-radius:var(--r-md);margin-bottom:20px">
+          <span class="svg-icon icon-document icon-xl" aria-hidden="true" style="margin-bottom:14px;"></span>
+          <p style="color:var(--gray-500);margin-bottom:14px">Open the document to view it or download it locally.</p>
+          <a href="{{ content.content_url }}" target="_blank" class="btn btn-primary">Open Document →</a>
+        </div>
+        {% endif %}
+      {% endif %}
+
+      {% if content.body %}
+      <div style="background:var(--gray-50);border-radius:var(--r-md);padding:24px;line-height:1.8;color:var(--gray-700);white-space:pre-wrap">{{ content.body }}</div>
+      {% endif %}
+
+      <!-- Navigation -->
+      <div class="flex-between" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-200)">
+        {% set prev = none %}
+        {% set next = none %}
+        {% for i in range(all_contents|length) %}
+          {% if all_contents[i].id == content.id %}
+            {% if i > 0 %}{% set prev = all_contents[i-1] %}{% endif %}
+            {% if i < all_contents|length - 1 %}{% set next = all_contents[i+1] %}{% endif %}
+          {% endif %}
+        {% endfor %}
+        {% if prev %}
+        <a href="{{ url_for('view_content', content_id=prev.id) }}" class="btn btn-outline">← {{ prev.title[:30] }}</a>
+        {% else %}<div></div>{% endif %}
+        {% if next %}
+        <a href="{{ url_for('view_content', content_id=next.id) }}" class="btn btn-primary">{{ next.title[:30] }} →</a>
+        {% else %}
+        <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-green">Back to Course</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar: Content List -->
+  <div>
+    <div class="card">
+      <h5 style="margin-bottom:14px"><span class="svg-icon icon-courses" aria-hidden="true"></span> Course Content</h5>
+      <div class="content-list">
+        {% for item in all_contents %}
+        <a href="{{ url_for('view_content', content_id=item.id) }}"
+           style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-md);border:1.5px solid {{ 'var(--blue)' if item.id == content.id else 'transparent' }};background:{{ '#EFF6FF' if item.id == content.id else 'transparent' }};transition:all .15s;color:inherit"
+           onmouseover="if({{ 'false' if item.id == content.id else 'true' }})this.style.background='var(--gray-50)'"
+           onmouseout="if({{ 'false' if item.id == content.id else 'true' }})this.style.background=''">
+          {% if item.content_type == 'video' %}
+          <span class="svg-icon icon-video" aria-hidden="true"></span>
+          {% elif item.content_type == 'presentation' %}
+          <span class="svg-icon icon-presentation" aria-hidden="true"></span>
+          {% else %}
+          <span class="svg-icon icon-note" aria-hidden="true"></span>
+          {% endif %}
+          <div style="flex:1">
+            <div style="font-size:12.5px;font-weight:{{ '700' if item.id == content.id else '500' }};color:{{ 'var(--blue)' if item.id == content.id else 'var(--gray-700)' }}">{{ item.title[:32] + '…' if item.title|length > 32 else item.title }}</div>
+          </div>
+          {% if item.id == content.id %}<span style="color:var(--blue);font-size:13px">▶</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

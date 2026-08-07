@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Courses — Learn Together{% endblock %}
+
+{% if current_user %}
+{% block content %}
+<div class="page-header">
+  <h2><span class="svg-icon icon-courses" aria-hidden="true"></span> All Courses</h2>
+  <p>Browse every available course in your workspace.</p>
+</div>
+{% if current_user.role == 'teacher' %}
+<div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <p style="margin:0;color:var(--gray-600)">Manage and publish course content from one place.</p>
+  <a href="{{ url_for('create_course') }}" class="btn btn-primary">+ Create New Course</a>
+</div>
+{% endif %}
+<div class="course-grid">
+  {% for course in courses %}
+  <a href="{{ url_for('course_detail', course_id=course.id) }}" class="course-card">
+    <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
+      {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
+        <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
+      {% elif course.thumbnail %}
+        <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
+      {% else %}
+        <span style="position:relative;z-index:1;font-size:52px">
+          <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+        </span>
+      {% endif %}
+      {% if course.id in enrolled_ids %}
+      <div style="position:absolute;top:10px;right:10px;background:var(--green);color:white;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:2">✓ Enrolled</div>
+      {% endif %}
+    </div>
+    <div class="course-card-body">
+      <div class="course-card-category">{{ course.category or 'General' }}</div>
+      <div class="course-card-title">{{ course.title }}</div>
+      <div class="course-card-desc">{{ course.description[:90] + '…' if course.description and course.description|length > 90 else course.description }}</div>
+      <div class="course-card-meta">
+        <span class="course-meta-item"><span class="svg-icon icon-teacher" aria-hidden="true"></span> {{ course.teacher.name }}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="badge badge-gray">{{ course.contents|length }} lessons</span>
+          <span class="badge badge-{{ 'green' if course.level == 'beginner' else 'blue' if course.level == 'intermediate' else 'purple' }}">{{ course.level|capitalize }}</span>
+        </div>
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="empty-state" style="grid-column:1/-1">
+    <span class="svg-icon icon-empty icon-xl" aria-hidden="true"></span>
+    <h4>No courses yet</h4>
+    <p>Courses will appear here once teachers create them.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% else %}
+{% block public_content %}
+<div class="landing-shell">
+  <nav class="public-nav">
+    <div class="public-nav-logo">
+      <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-nav">
+      <span>Learn Together</span>
+    </div>
+    <div class="public-nav-links">
+      <a href="{{ url_for('index') }}">Home</a>
+      <a href="{{ url_for('courses') }}">Courses</a>
+      <a href="{{ url_for('index') }}#features">Features</a>
+      <a href="{{ url_for('index') }}#about">About</a>
+    </div>
+    <div class="public-nav-actions">
+      <a href="{{ url_for('login') }}" class="btn btn-outline">Log in</a>
+      <a href="{{ url_for('register') }}" class="btn btn-primary">Sign up free</a>
+    </div>
+  </nav>
+
+  <section class="section-surface section-courses" style="margin:32px auto 48px;max-width:1180px">
+    <div class="section-headline">
+      <h2><span class="svg-icon icon-courses" aria-hidden="true"></span> All Courses</h2>
+      <p>Discover the available courses on Learn Together.</p>
+    </div>
+
+    <div class="course-grid">
+      {% for course in courses %}
+      <a href="{{ url_for('course_detail', course_id=course.id) }}" class="course-card">
+        <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
+          {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
+            <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
+          {% elif course.thumbnail %}
+            <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
+          {% else %}
+            <span style="position:relative;z-index:1;font-size:52px">
+              <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+            </span>
+          {% endif %}
+          {% if course.id in enrolled_ids %}
+          <div style="position:absolute;top:10px;right:10px;background:var(--green);color:white;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:2">✓ Enrolled</div>
+          {% endif %}
+        </div>
+        <div class="course-card-body">
+          <div class="course-card-category">{{ course.category or 'General' }}</div>
+          <div class="course-card-title">{{ course.title }}</div>
+          <div class="course-card-desc">{{ course.description[:90] + '…' if course.description and course.description|length > 90 else course.description }}</div>
+          <div class="course-card-meta">
+            <span class="course-meta-item"><span class="svg-icon icon-teacher" aria-hidden="true"></span> {{ course.teacher.name }}</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span class="badge badge-gray">{{ course.contents|length }} lessons</span>
+              <span class="badge badge-{{ 'green' if course.level == 'beginner' else 'blue' if course.level == 'intermediate' else 'purple' }}">{{ course.level|capitalize }}</span>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% else %}
+      <div class="empty-state" style="grid-column:1/-1">
+        <span class="svg-icon icon-empty icon-xl" aria-hidden="true"></span>
+        <h4>No courses yet</h4>
+        <p>Courses will appear here once teachers create them.</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% endif %}

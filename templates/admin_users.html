@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Manage Users — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2> User Management</h2>
+    <p>Manage all platform users</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="card">
+  <!-- Filter Bar -->
+  <div class="flex gap-2" style="margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-primary btn-sm" onclick="filterUsers('all')">All ({{ users|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterUsers('student')">Students ({{ users|selectattr('role','eq','student')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterUsers('teacher')">Teachers ({{ users|selectattr('role','eq','teacher')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterUsers('parent')">Parents ({{ users|selectattr('role','eq','parent')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterUsers('admin')">Admins ({{ users|selectattr('role','eq','admin')|list|length }})</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="usersTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr data-role="{{ u.role }}">
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <div class="user-avatar" style="width:30px;height:30px;font-size:12px;overflow:hidden">
+                {% if u.avatar %}
+                  <img src="{{ url_for('static', filename=u.avatar) }}" alt="{{ u.name }} avatar" style="width:100%;height:100%;object-fit:cover;display:block">
+                {% else %}
+                  {{ u.name[0].upper() }}
+                {% endif %}
+              </div>
+              <strong>{{ u.name }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-500)">{{ u.email }}</td>
+          <td>
+            <span class="badge badge-{{ 'blue' if u.role == 'student' else 'green' if u.role == 'teacher' else 'purple' if u.role == 'parent' else 'orange' }}">
+              {{ u.role|capitalize }}
+            </span>
+          </td>
+          <td>
+            <span class="badge badge-{{ 'orange' if u.status == 'pending' else 'green' if u.status == 'approved' else 'red' }}">
+              {{ u.status|capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--gray-400)">{{ u.created_at.strftime('%b %d, %Y') }}</td>
+          <td>
+            {% if u.role != 'admin' %}
+            {% if u.status != 'approved' %}
+            <form method="POST" action="{{ url_for('review_user', user_id=u.id) }}" class="flex gap-2" style="flex-wrap:wrap">
+              <button class="btn btn-success btn-sm" name="action" value="approve">Approve</button>
+              <button class="btn btn-outline btn-sm" name="action" value="deny">Deny</button>
+            </form>
+            {% else %}
+            <span style="color:var(--gray-500);font-size:12px">Approved</span>
+            {% endif %}
+            <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('Delete {{ u.name }}? This cannot be undone.')" style="margin-top:6px">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+            {% else %}
+            <span style="color:var(--gray-300);font-size:12px">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterUsers(role) {
+  document.querySelectorAll('#usersTable tbody tr').forEach(row => {
+    row.style.display = (role === 'all' || row.dataset.role === role) ? '' : 'none';
+  });
+  document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-primary'));
+  event.target.classList.add('btn-primary');
+  event.target.classList.remove('btn-outline');
+}
+</script>
+{% endblock %}

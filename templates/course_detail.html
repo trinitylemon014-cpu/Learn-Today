@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% block title %}{{ course.title }} — Learn Together{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('courses') }}" style="color:var(--blue)">Courses</a>
+  <span>›</span>
+  <span>{{ course.title }}</span>
+</div>
+
+<div class="grid-3-1">
+  <!-- Main Content -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="margin-bottom:16px">
+        {% if course.thumbnail %}
+          {% if course.thumbnail.startswith('uploads/') %}
+          <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }} thumbnail" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--r-md);margin-bottom:16px">
+          {% else %}
+          <div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-md);background:linear-gradient(135deg,var(--blue),var(--purple));color:white;font-size:32px;font-weight:700;margin-bottom:16px">
+            {{ course.thumbnail[:2].upper() }}
+          </div>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:16px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">{{ course.category }}</div>
+          <h2 style="margin-bottom:8px">{{ course.title }}</h2>
+          <div class="flex gap-3" style="align-items:center">
+            <span class="course-meta-item"><span class="svg-icon icon-teacher" aria-hidden="true"></span> {{ course.teacher.name }}</span>
+            <span class="badge badge-{{ 'green' if course.level == 'beginner' else 'blue' if course.level == 'intermediate' else 'purple' }}">{{ course.level|capitalize }}</span>
+            <span class="badge badge-gray">{{ contents|length }} lessons</span>
+          </div>
+        </div>
+        {% if current_user %}
+          {% if current_user.role == 'student' %}
+            {% if is_enrolled %}
+              <span class="badge badge-green" style="font-size:13px;padding:8px 16px">✓ Enrolled</span>
+            {% else %}
+              <form method="POST" action="{{ url_for('enroll_course', course_id=course.id) }}">
+                <button class="btn btn-green">Enroll Now →</button>
+              </form>
+            {% endif %}
+          {% elif (current_user.role == 'teacher' and course.teacher_id == current_user.id) or current_user.role == 'admin' %}
+            <div class="flex gap-2">
+              {% if current_user.role == 'teacher' and course.teacher_id == current_user.id %}
+              <a href="{{ url_for('edit_course', course_id=course.id) }}" class="btn btn-outline btn-sm">Edit Course</a>
+              <a href="{{ url_for('add_content', course_id=course.id) }}" class="btn btn-primary btn-sm"><span class="svg-icon icon-add" aria-hidden="true"></span> Add Content</a>
+              <a href="{{ url_for('schedule_lesson', course_id=course.id) }}" class="btn btn-outline btn-sm">Schedule Meeting</a>
+              <a href="{{ url_for('analytics', course_id=course.id) }}" class="btn btn-outline btn-sm"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Analytics</a>
+              {% endif %}
+              <form method="POST" action="{{ url_for('delete_course', course_id=course.id) }}" onsubmit="return confirm('Delete this course and all related content? This cannot be undone.')" style="display:inline">
+                <button type="submit" class="btn btn-danger btn-sm">Delete Course</button>
+              </form>
+            </div>
+          {% endif %}
+        {% else %}
+          <a href="{{ url_for('login') }}" class="btn btn-primary">Log In to Enroll</a>
+        {% endif %}
+      </div>
+
+      {% if progress %}
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200)">
+        <div class="flex-between" style="margin-bottom:6px">
+          <span style="font-size:13px;font-weight:600;color:var(--gray-600)">Your Progress</span>
+          <span style="font-weight:800;color:var(--navy)">{{ progress.progress_percent }}%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" data-width="{{ progress.progress_percent }}" style="width:0"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <p style="margin-top:16px;color:var(--gray-600);line-height:1.7">{{ course.description }}</p>
+    </div>
+
+    <!-- Scheduled Meetings -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="flex-between" style="margin-bottom:14px">
+        <h4><span class="svg-icon icon-courses-list" aria-hidden="true"></span> Scheduled Meetings</h4>
+        {% if current_user and current_user.role == 'teacher' and course.teacher_id == current_user.id %}
+        <a href="{{ url_for('schedule_lesson', course_id=course.id) }}" class="btn btn-outline btn-sm">Schedule Meeting</a>
+        {% endif %}
+      </div>
+      {% if lessons %}
+      <div style="display:flex;flex-direction:column;gap:12px">
+        {% for lesson in lessons %}
+        <div style="display:block;padding:14px;border:1px solid var(--gray-200);border-radius:10px;color:inherit">
+          <div class="flex-between" style="align-items:flex-start;gap:12px">
+            <div>
+              <div style="font-weight:700;color:var(--navy)">{{ lesson.title }}</div>
+              {% if lesson.scheduled_at %}
+              <div style="font-size:12px;color:var(--gray-500)">{{ lesson.scheduled_at.strftime('%b %d, %Y %I:%M %p') }}</div>
+              {% elif lesson.created_at %}
+              <div style="font-size:12px;color:var(--gray-500)">Created {{ lesson.created_at.strftime('%b %d, %Y') }}</div>
+              {% endif %}
+            </div>
+            <span class="badge badge-{{ 'green' if lesson.is_active else 'gray' }}">{{ 'Active' if lesson.is_active else 'Hidden' }}</span>
+          </div>
+          {% if lesson.poster_url %}
+          <div class="lesson-poster">
+            <img src="{{ url_for('static', filename=lesson.poster_url) }}" alt="Lesson poster for {{ lesson.title }}">
+          </div>
+          {% endif %}
+          {% if lesson.description %}
+          <p style="margin:12px 0 0;color:var(--gray-600)">{{ lesson.description }}</p>
+          {% endif %}
+          <div class="flex gap-2" style="margin-top:12px;flex-wrap:wrap">
+            <a href="{{ lesson.meet_link }}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Open meeting</a>
+            {% if current_user and current_user.role == 'teacher' and course.teacher_id == current_user.id %}
+            <form method="POST" action="{{ url_for('toggle_scheduled_lesson', course_id=course.id, lesson_id=lesson.id) }}" style="display:inline">
+              <button type="submit" class="btn btn-outline btn-sm">{{ 'Hide' if lesson.is_active else 'Show' }}</button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_scheduled_lesson', course_id=course.id, lesson_id=lesson.id) }}" style="display:inline" onsubmit="return confirm('Remove this scheduled meeting?');">
+              <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted text-sm">No scheduled meetings yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h4 style="margin-bottom:16px"><span class="svg-icon icon-courses-list" aria-hidden="true"></span> Course Content</h4>
+      {% if contents %}
+      <div class="content-list">
+        {% for item in contents %}
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <a href="{{ url_for('view_content', content_id=item.id) }}" class="content-item" style="flex:1;display:flex;align-items:center;gap:10px">
+            <div class="content-item-icon {{ item.content_type }}">
+              {% if item.content_type == 'video' %}
+                <span class="svg-icon icon-video" aria-hidden="true"></span>
+              {% elif item.content_type == 'presentation' %}
+                <span class="svg-icon icon-presentation" aria-hidden="true"></span>
+              {% elif item.content_type == 'document' %}
+                <span class="svg-icon icon-document" aria-hidden="true"></span>
+              {% else %}
+                <span class="svg-icon icon-note" aria-hidden="true"></span>
+              {% endif %}
+            </div>
+            <div style="flex:1">
+              <div class="content-item-title">{{ item.title }}</div>
+              <div class="content-item-type">{{ item.content_type|capitalize }}</div>
+            </div>
+            <span style="font-size:20px;color:var(--gray-300)">›</span>
+          </a>
+          {% if current_user and current_user.role == 'teacher' and course.teacher_id == current_user.id %}
+          <form action="{{ url_for('delete_content', content_id=item.id) }}" method="POST" style="margin-left:auto">
+            <button type="submit" class="btn btn-outline btn-sm" style="white-space:nowrap">Delete</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <span class="svg-icon icon-empty" aria-hidden="true"></span>
+        <h4>No content yet</h4>
+        <p>The teacher hasn't added content to this course yet.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h5 style="margin-bottom:14px"><span class="svg-icon icon-analytics" aria-hidden="true"></span> Course Stats</h5>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="flex-between">
+          <span style="font-size:13px;color:var(--gray-500)">Students</span>
+          <span style="font-weight:700;color:var(--navy)">{{ course.enrollments|length }}</span>
+        </div>
+        <div class="flex-between">
+          <span style="font-size:13px;color:var(--gray-500)">Lessons</span>
+          <span style="font-weight:700;color:var(--navy)">{{ contents|length }}</span>
+        </div>
+        <div class="flex-between">
+          <span style="font-size:13px;color:var(--gray-500)">Level</span>
+          <span class="badge badge-blue">{{ course.level|capitalize }}</span>
+        </div>
+        <div class="flex-between">
+          <span style="font-size:13px;color:var(--gray-500)">Category</span>
+          <span style="font-weight:600;color:var(--gray-700)">{{ course.category }}</span>
+        </div>
+      </div>
+    </div>
+
+    {% if group %}
+    {% set group_identity = identity_for_group(group) %}
+    <div class="card" style="border:1.5px solid var(--purple);background:var(--purple-bg)">
+      <div class="flex gap-2" style="align-items:center;margin-bottom:10px">
+        <div style="width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(135deg, {{ group_identity.color }}, var(--navy));color:white;flex-shrink:0">
+          {% if group_identity.avatar_url %}
+          <img src="{{ group_identity.avatar_url }}" alt="{{ group.name }} avatar" style="width:100%;height:100%;object-fit:cover;display:block">
+          {% else %}
+          <span style="font-weight:700;letter-spacing:.04em">{{ group_identity.initials }}</span>
+          {% endif %}
+        </div>
+        <div>
+          <h5 style="margin-bottom:2px;color:var(--purple)">💬 Course Group</h5>
+          <p style="font-size:12px;color:var(--gray-500);margin:0">{{ group.members|length }} members</p>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--gray-600);margin-bottom:12px">{{ group.name }}</p>
+      <a href="{{ url_for('group_detail', group_id=group.id) }}" class="btn btn-purple btn-sm btn-block">Open Group Chat →</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

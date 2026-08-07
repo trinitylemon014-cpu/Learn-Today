@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard — Learn Together{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+  <div class="welcome-text">
+    <h3>Admin Dashboard </h3>
+    <p>Platform overview and management</p>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-icon blue"></div>
+    <div class="stat-value">{{ users|length }}</div>
+    <div class="stat-label">Total Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon green"></div>
+    <div class="stat-value">{{ courses|length }}</div>
+    <div class="stat-label">Total Courses</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon purple"></div>
+    <div class="stat-value">{{ teachers|length }}</div>
+    <div class="stat-label">Teachers</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-icon orange"></div>
+    <div class="stat-value">{{ students|length }}</div>
+    <div class="stat-label">Students</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="flex-between mb-4">
+      <h4>Recent Users</h4>
+      <a href="{{ url_for('admin_users') }}" class="btn btn-outline btn-sm">Manage All</a>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+        </thead>
+        <tbody>
+          {% for u in users[-10:]|reverse %}
+          <tr>
+            <td><strong>{{ u.name }}</strong></td>
+            <td style="color:var(--gray-500)">{{ u.email }}</td>
+            <td><span class="badge badge-{{ 'blue' if u.role == 'student' else 'green' if u.role == 'teacher' else 'purple' if u.role == 'parent' else 'orange' }}">{{ u.role }}</span></td>
+            <td style="color:var(--gray-400)">{{ u.created_at.strftime('%b %d') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between mb-4">
+      <h4>Courses</h4>
+      <a href="{{ url_for('admin_courses') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Course</th><th>Teacher</th><th>Students</th></tr>
+        </thead>
+        <tbody>
+          {% for c in courses %}
+          <tr>
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                {% if c.thumbnail %}
+                  {% if c.thumbnail.startswith('uploads/') %}
+                  <img src="{{ url_for('static', filename=c.thumbnail) }}" alt="{{ c.title }} thumbnail" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0">
+                  {% else %}
+                  <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0">
+                    {{ c.thumbnail[:2].upper() }}
+                  </div>
+                  {% endif %}
+                {% else %}
+                <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;color:white;flex-shrink:0">
+                  <span class="svg-icon icon-courses" aria-hidden="true"></span>
+                </div>
+                {% endif %}
+                <strong>{{ c.title[:28] + '…' if c.title|length > 28 else c.title }}</strong>
+              </div>
+            </td>
+            <td style="color:var(--gray-500)">{{ c.teacher.name }}</td>
+            <td><span class="badge badge-blue">{{ c.enrollments|length }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

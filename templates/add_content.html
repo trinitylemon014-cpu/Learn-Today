@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Add Content — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="flex gap-2" style="align-items:center;margin-bottom:20px;font-size:13px;color:var(--gray-400)">
+  <a href="{{ url_for('course_detail', course_id=course.id) }}" style="color:var(--blue)">{{ course.title }}</a>
+  <span>›</span>
+  <span>Add Content</span>
+</div>
+
+<div style="max-width:680px">
+  <div class="card">
+    <h3 style="margin-bottom:20px"><span class="svg-icon icon-add icon-lg" aria-hidden="true"></span> Add Course Content</h3>
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('add_content', course_id=course.id) }}">
+      <div class="form-group">
+        <label class="form-label"> Content Title</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g. Introduction to Variables" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"> Content Type</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          {% for ctype, label in [('note','Note / Article'),('video','Video'),('presentation','Presentation'),('document','Document')] %}
+          <label style="cursor:pointer">
+            <input type="radio" name="content_type" value="{{ ctype }}" {% if ctype == 'note' %}checked{% endif %} style="display:none" onchange="selectType('{{ ctype }}')">
+            <div class="content-type-btn" id="btn_{{ ctype }}" onclick="selectType('{{ ctype }}')" style="border:2px solid {{ 'var(--blue)' if ctype == 'note' else 'var(--gray-200)' }};border-radius:var(--r-md);padding:14px;text-align:center;transition:all .15s;background:{{ '#EFF6FF' if ctype == 'note' else 'white' }}">
+              <div style="margin-bottom:6px">
+                {% if ctype == 'note' %}
+                  <span class="svg-icon icon-note icon-lg" aria-hidden="true"></span>
+                {% elif ctype == 'video' %}
+                  <span class="svg-icon icon-video icon-lg" aria-hidden="true"></span>
+                {% elif ctype == 'presentation' %}
+                  <span class="svg-icon icon-presentation icon-lg" aria-hidden="true"></span>
+                {% elif ctype == 'document' %}
+                  <span class="svg-icon icon-document icon-lg" aria-hidden="true"></span>
+                {% endif %}
+              </div>
+              <div style="font-size:12.5px;font-weight:600;color:var(--navy)">{{ label }}</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group" id="urlField" style="display:none">
+        <label class="form-label">Content URL</label>
+        <input type="url" name="content_url" class="form-control" placeholder="https://youtube.com/... or https://slides.google.com/...">
+        <div class="form-hint">Paste a YouTube link, Google Slides URL, or any accessible URL.</div>
+      </div>
+
+      <div class="form-group" id="fileField" style="display:none">
+        <label class="form-label" id="fileLabel">Upload File</label>
+        <input type="file" name="content_file" class="form-control" id="contentFile" accept="video/*,.pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+        <div class="form-hint" id="fileHint">Upload a file or provide a link above.</div>
+      </div>
+
+      <div class="form-group" id="bodyField">
+        <label class="form-label">Content Body</label>
+        <textarea name="body" class="form-control" rows="8" placeholder="Write your lesson content here. You can use plain text with line breaks for formatting…"></textarea>
+      </div>
+
+      <div class="flex gap-3">
+        <button type="submit" class="btn btn-primary btn-lg">Add Content →</button>
+        <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-outline btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function selectType(type) {
+  ['note','video','presentation','document'].forEach(t => {
+    const btn = document.getElementById('btn_' + t);
+    btn.style.borderColor = t === type ? 'var(--blue)' : 'var(--gray-200)';
+    btn.style.background  = t === type ? '#EFF6FF' : 'white';
+  });
+  document.querySelector(`input[value="${type}"]`).checked = true;
+  const urlField  = document.getElementById('urlField');
+  const fileField = document.getElementById('fileField');
+  const fileLabel = document.getElementById('fileLabel');
+  const fileHint = document.getElementById('fileHint');
+  const bodyField = document.getElementById('bodyField');
+  if (type === 'video' || type === 'presentation' || type === 'document') {
+    urlField.style.display  = 'block';
+    fileField.style.display = 'block';
+    bodyField.style.display = 'none';
+    if (type === 'video') {
+      fileLabel.textContent = 'Upload Video';
+      fileHint.textContent = 'Upload an MP4/WebM video file or provide a link above.';
+      document.getElementById('contentFile').accept = 'video/*';
+    } else if (type === 'presentation') {
+      fileLabel.textContent = 'Upload Presentation';
+      fileHint.textContent = 'Upload a PDF or PowerPoint presentation file or provide a link above.';
+      document.getElementById('contentFile').accept = '.pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    } else {
+      fileLabel.textContent = 'Upload Document';
+      fileHint.textContent = 'Upload a PDF, Word, or Excel document or provide a link above.';
+      document.getElementById('contentFile').accept = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+  } else {
+    fileField.style.display = 'none';
+    urlField.style.display  = 'none';
+    bodyField.style.display = 'block';
+  }
+}
+</script>
+{% endblock %}

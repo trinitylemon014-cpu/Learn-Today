@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Application Status — Learn Together{% endblock %}
+
+{% block public_content %}
+<div class="landing-shell">
+  <section class="hero hero-status">
+    {% if config.banner_image %}
+    <div class="hero-illustration">
+      <div class="hero-video-wrapper hero-video-full status-hero-graphic">
+        <img src="{{ url_for('static', filename=config.banner_image) }}" alt="Application information" class="hero-video" />
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="hero-content">
+      <span class="hero-eyebrow">Application status</span>
+      <h1>{{ config.headline }}</h1>
+      <p class="hero-copy">{{ config.subtitle }}</p>
+
+      <div class="status-card">
+        <div class="status-card-body">
+          <h3>Your current application</h3>
+          <p class="status-text">{{ status_text }}</p>
+          {% if show_setup_link %}
+          <div class="status-action">
+            <a href="{{ url_for('setup_password', email=email) }}" class="btn btn-green btn-lg">Set your password now</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="status-return-wrap">
+        <a href="{{ url_for('login') }}" class="btn btn-outline btn-lg hero-btn">Return to login</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-surface section-status-details">
+    <div class="section-headline">
+      <span>Application details</span>
+      <h2>What happens next</h2>
+      <p>{{ config.main_text }}</p>
+    </div>
+
+    <div class="status-grid">
+      {% if config.details_text %}
+      <div class="feature-card status-feature-card purple">
+        <div class="feature-card-icon">i</div>
+        <h4>Information for applicants</h4>
+        <p>{{ config.details_text }}</p>
+      </div>
+      {% endif %}
+
+      {% if config.promo_text %}
+      <div class="feature-card status-feature-card green">
+        <div class="feature-card-icon">✓</div>
+        <h4>Why Learn Together</h4>
+        <p>{{ config.promo_text }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="section-cta">
+    <div class="cta-inner">
+      <h2>Need help with your application?</h2>
+      <p>Contact Learn Together support or return to login once your account is approved.</p>
+      <div class="cta-actions">
+        <a href="{{ url_for('login') }}" class="btn btn-outline btn-lg hero-btn">Return to login</a>
+        {% if show_setup_link %}
+        <a href="{{ url_for('setup_password', email=email) }}" class="btn btn-green btn-lg">Set password</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <div class="landing-brand">Learn<span>Together</span></div>
+    <div>© 2030 Learn Together. Built for modern learning and collaboration.</div>
+  </footer>
+</div>
+{% endblock %}

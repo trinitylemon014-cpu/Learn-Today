@@ -1,0 +1,216 @@
+// Learn Together — Main JS
+
+document.addEventListener('DOMContentLoaded', () => {
+  initSidebar();
+  initAlerts();
+  initRoleCards();
+  initChatPolling();
+  initGroupNotifications();
+});
+
+// ── Sidebar Toggle (Mobile) ──
+function initSidebar() {
+  const toggle = document.getElementById('sidebarToggle');
+  const collapseBtn = document.getElementById('sidebarCollapse');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const mainContent = document.querySelector('.main-content');
+  if (!toggle || !sidebar) return;
+
+  toggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('show');
+  });
+
+  if (collapseBtn) {
+    collapseBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      if (mainContent) mainContent.classList.toggle('sidebar-collapsed');
+    });
+    collapseBtn.addEventListener('dblclick', () => {
+      sidebar.classList.toggle('open');
+      if (overlay) overlay.classList.toggle('show');
+    });
+  }
+
+  if (overlay) overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+  });
+
+  // Active nav
+  const path = window.location.pathname;
+  document.querySelectorAll('.nav-item[href]').forEach(a => {
+    if (a.getAttribute('href') === path) a.classList.add('active');
+  });
+}
+
+// ── Auto-dismiss Alerts ──
+function initAlerts() {
+  document.querySelectorAll('.alert').forEach(alert => {
+    setTimeout(() => {
+      alert.style.opacity = '0';
+      alert.style.transform = 'translateY(-6px)';
+      alert.style.transition = 'all .3s';
+      setTimeout(() => alert.remove(), 350);
+    }, 4000);
+  });
+}
+
+// ── Role Selection Cards ──
+function initRoleCards() {
+  document.querySelectorAll('.role-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      const roleInput = document.getElementById('roleInput');
+      if (roleInput) roleInput.value = card.dataset.role;
+      // Show/hide parent field
+      const parentField = document.getElementById('parentEmailField');
+      if (parentField) {
+        parentField.style.display = card.dataset.role === 'student' ? 'block' : 'none';
+      }
+    });
+  });
+}
+
+// ── Global group notifications ──
+function createToast(title, body) {
+  let existing = document.getElementById('globalToast');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'globalToast';
+    existing.className = 'chat-toast';
+    document.body.appendChild(existing);
+  }
+  existing.innerHTML = `
+    <div class="chat-toast-badge">📩 New message</div>
+    <div class="chat-toast-title">${title}</div>
+    <div class="chat-toast-body">${body}</div>
+  `;
+  existing.classList.add('show');
+  clearTimeout(createToast.timer);
+  createToast.timer = setTimeout(() => existing.classList.remove('show'), 4000);
+}
+
+function showBrowserNotification(sender, message) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(`${sender} sent a message`, { body: message, icon: '/static/favicon.ico' });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function initGroupNotifications() {
+  const groupIds = window.LearnTogether?.userGroupIds;
+  if (!Array.isArray(groupIds) || !groupIds.length) return;
+  if (typeof io === 'undefined') return;
+
+  const socket = io();
+  socket.on('connect', () => {
+    groupIds.forEach(groupId => socket.emit('join', { groupId }));
+  });
+  socket.on('group-message', payload => {
+    if (!payload || !payload.groupId || !payload.message) return;
+    const activeGroupId = document.getElementById('chatMessages')?.dataset.groupId;
+    if (activeGroupId && parseInt(activeGroupId, 10) === parseInt(payload.groupId, 10)) return;
+    const msg = payload.message;
+    const text = msg.message || msg.attachment_name || 'shared an attachment';
+    createToast(msg.sender, text);
+    showBrowserNotification(msg.sender, text);
+  });
+}
+
+// ── Chat Polling ──
+function initChatPolling() {
+  const chatMessages = document.getElementById('chatMessages');
+  if (!chatMessages) return;
+
+  const groupId = chatMessages.dataset.groupId;
+  const currentUserId = parseInt(chatMessages.dataset.userId || '0');
+  if (!groupId) return;
+
+  let lastId = 0;
+  document.querySelectorAll('.chat-message').forEach(m => {
+    const id = parseInt(m.dataset.msgId || '0');
+    if (id > lastId) lastId = id;
+  });
+
+  async function poll() {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/messages?after=${lastId}`);
+      const msgs = await res.json();
+      if (msgs.length > 0) {
+        msgs.forEach(m => {
+          const isOwn = m.sender_id === currentUserId;
+          const div = document.createElement('div');
+          div.className = `chat-message ${isOwn ? 'own' : ''}`;
+          div.dataset.msgId = m.id;
+          const initial = m.sender.charAt(0).toUpperCase();
+          div.innerHTML = `
+            <div class="msg-avatar">${initial}</div>
+            <div>
+              <div class="msg-bubble">${escapeHtml(m.message)}</div>
+              <div class="msg-meta">${isOwn ? '' : '<span>' + escapeHtml(m.sender) + '</span> · '}<span>${m.timestamp}</span></div>
+            </div>`;
+          chatMessages.appendChild(div);
+          if (m.id > lastId) lastId = m.id;
+        });
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  // Scroll to bottom initially
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  setInterval(poll, 3000);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+// ── Attendance Toggle ──
+function markAttendance(sessionId, studentId, status, btn) {
+  fetch(`/attendance/mark/${sessionId}/${studentId}/${status}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const row = btn.closest('tr');
+        row.querySelectorAll('.att-btn').forEach(b => b.classList.remove('active-btn'));
+        btn.classList.add('active-btn');
+        const statusCell = row.querySelector('.att-status');
+        if (statusCell) {
+          statusCell.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+          statusCell.className = `att-status att-${status}`;
+        }
+      }
+    });
+}
+
+// ── Progress Animation ──
+window.addEventListener('load', () => {
+  document.querySelectorAll('.progress-bar[data-width]').forEach(bar => {
+    const w = bar.dataset.width;
+    setTimeout(() => { bar.style.width = w + '%'; }, 200);
+  });
+});
+
+// ── Smooth Tab Switching ──
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  const pane = document.getElementById(tabId);
+  if (pane) pane.style.display = 'block';
+  const tab = document.querySelector(`[data-tab="${tabId}"]`);
+  if (tab) tab.classList.add('active');
+}
+
+// ── Content Type Icon ──
+function getContentIcon(type) {
+  const icons = { video: '🎬', note: '📄', presentation: '📊', quiz: '✏️', assignment: '📝' };
+  return icons[type] || '📄';
+}
