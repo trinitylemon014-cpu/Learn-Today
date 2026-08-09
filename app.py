@@ -464,7 +464,8 @@ def ensure_database_schema():
             inspector = db.inspect(db.engine)
         except Exception as exc:
             app.logger.warning('Supabase/Postgres schema inspection failed, using local SQLite fallback: %s', exc)
-            app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(instance_path, 'database.db').replace('\\', '/')}"
+            db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
+            app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
             db.session.remove()
             db.engines.pop(None, None)
             _ensure_sqlalchemy_engine()
