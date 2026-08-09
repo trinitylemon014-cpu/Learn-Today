@@ -360,21 +360,36 @@ TABLE_NAME_BY_MODEL = {
 
 
 def _model_to_payload(obj):
+    """
+    Build a {db_column_name: value} payload for Supabase sync.
+
+    IMPORTANT: we iterate the SQLAlchemy *mapper's* column attributes
+    (which know both the Python attribute name and the real DB column
+    name) rather than raw obj.__table__.columns. This matters whenever
+    a model's Python attribute name differs from its DB column name
+    (e.g. Notification.extra_data is mapped to the DB column
+    "metadata"). Using getattr(obj, column.name) directly would be
+    wrong in that case, since "metadata" as a bare attribute on a
+    db.Model resolves to SQLAlchemy's reserved internal metadata
+    object, not your data.
+    """
     if obj is None:
         return {}
     payload = {}
-    for column in obj.__table__.columns:
-        name = column.name
-        value = getattr(obj, name, None)
+    mapper = db.inspect(obj.__class__)
+    for column_attr in mapper.column_attrs:
+        python_attr_name = column_attr.key
+        db_column_name = column_attr.columns[0].name
+        value = getattr(obj, python_attr_name, None)
         if value is None:
-            payload[name] = None
+            payload[db_column_name] = None
             continue
         if isinstance(value, (datetime, date, time)):
-            payload[name] = value.isoformat()
+            payload[db_column_name] = value.isoformat()
         elif isinstance(value, bool):
-            payload[name] = value
+            payload[db_column_name] = value
         else:
-            payload[name] = value
+            payload[db_column_name] = value
     return payload
 
 

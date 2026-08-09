@@ -48,7 +48,10 @@ class Notification(db.Model):
     message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=True)
     read_at = db.Column(db.DateTime, nullable=True)
     target_url = db.Column(db.String(300), nullable=True)
-    metadata = db.Column(db.JSON, nullable=True)
+    # NOTE: Python attribute renamed from "metadata" (reserved by SQLAlchemy's
+    # Declarative API) to "extra_data". The underlying DB column name stays
+    # "metadata" so no Supabase schema change is required.
+    extra_data = db.Column('metadata', db.JSON, nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'message_id', 'kind', name='uq_notifications_user_message_kind'),
