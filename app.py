@@ -488,6 +488,29 @@ def ensure_database_schema():
                 if column_name not in columns:
                     db.session.execute(text(f"ALTER TABLE messages ADD COLUMN {column_name} {column_type}"))
                     db.session.commit()
+        # Ensure notifications table has extended columns for group-message support
+        if 'notifications' in inspector.get_table_names():
+            columns = {column['name'] for column in inspector.get_columns('notifications')}
+            for column_name, column_type in [
+                ('sender_id', 'INTEGER'),
+                ('group_id', 'INTEGER'),
+                ('message_id', 'INTEGER'),
+                ('read_at', 'TIMESTAMP'),
+                ('target_url', 'VARCHAR(300)'),
+                ('metadata', 'JSON'),
+            ]:
+                if column_name not in columns:
+                    try:
+                        db.session.execute(text(f"ALTER TABLE notifications ADD COLUMN {column_name} {column_type}"))
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+            # Create uniqueness index to prevent duplicate notifications for same recipient+message+kind
+            try:
+                db.session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_user_message_kind ON notifications (user_id, message_id, kind)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         if 'scheduled_lessons' in existing_tables:
             columns = {column['name'] for column in inspector.get_columns('scheduled_lessons')}
             if 'poster_url' not in columns:
@@ -572,6 +595,8 @@ def inject_user():
         'can_manage_message': can_manage_message,
         'unread_notification_count': unread_count,
         'user_group_ids': user_group_ids,
+        'SUPABASE_URL': SUPABASE_URL,
+        'SUPABASE_ANON_KEY': SUPABASE_ANON_KEY,
     }
 
 
@@ -1515,6 +1540,40 @@ def send_message(group_id):
     except Exception:
         db.session.rollback()
 
+    # Create notifications for other group members (server-side, prevent duplicates)
+    try:
+        group = Group.query.get(group_id)
+        notifications_to_add = []
+        for m in members:
+            if m.user_id == user.id:
+                continue
+            # Prevent duplicate notification for same recipient + message + kind
+            exists = Notification.query.filter_by(user_id=m.user_id, message_id=msg.id, kind='group_message').first()
+            if exists:
+                continue
+            title = f"New message in {group.name if group else 'Group'}"
+            preview = (msg.message or '')
+            if len(preview) > 240:
+                preview = preview[:237] + '...'
+            body = f"{user.name}: {preview}"
+            link = url_for('group_detail', group_id=group_id) + f"#message-{msg.id}"
+            n = Notification(
+                user_id=m.user_id,
+                sender_id=user.id,
+                group_id=group_id,
+                message_id=msg.id,
+                title=title,
+                body=body,
+                link=link,
+                kind='group_message',
+            )
+            notifications_to_add.append(n)
+        if notifications_to_add:
+            db.session.add_all(notifications_to_add)
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     sender_identity = user_identity(user)
     # preserve any client-provided id for deduping optimistic render
     client_id = request.form.get('clientId') or request.form.get('client_id')
@@ -1658,6 +1717,60 @@ def notifications():
             db.session.commit()
 
     return render_template('notifications.html', notifications=notifications, selected=selected)
+
+
+@app.route('/api/notifications')
+def api_notifications():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    limit = request.args.get('limit', 40, type=int)
+    items = Notification.query.filter_by(user_id=user.id).order_by(Notification.created_at.desc()).limit(limit).all()
+    data = []
+    for it in items:
+        data.append({
+            'id': it.id,
+            'title': it.title,
+            'body': it.body,
+            'link': it.link or it.target_url,
+            'kind': it.kind,
+            'is_read': bool(it.is_read),
+            'created_at': it.created_at.isoformat() if it.created_at else None,
+            'sender_id': it.sender_id,
+            'group_id': it.group_id,
+            'message_id': it.message_id,
+        })
+    unread = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+    return jsonify({'notifications': data, 'unread_count': unread})
+
+
+@app.route('/api/notifications/<int:notif_id>/mark_read', methods=['POST'])
+def api_mark_notification_read(notif_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    n = Notification.query.filter_by(id=notif_id, user_id=user.id).first()
+    if not n:
+        return jsonify({'error': 'Not found'}), 404
+    if not n.is_read:
+        n.is_read = True
+        n.read_at = datetime.utcnow()
+        db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/notifications/mark_all_read', methods=['POST'])
+def api_mark_all_read():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        Notification.query.filter_by(user_id=user.id, is_read=False).update({'is_read': True, 'read_at': datetime.utcnow()}, synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to mark all read'}), 500
+    return jsonify({'success': True})
 
 @app.route('/calendar', methods=['GET', 'POST'])
 def calendar_view():

@@ -398,6 +398,40 @@ p  { color: var(--gray-600); }
 .lesson-reaction { position:absolute; right:8px; top:8px; background:rgba(0,0,0,0.6); color:white; padding:6px 8px; border-radius:12px; font-size:14px; opacity:0; transform:translateY(-6px); transition:all .18s ease; }
 .lesson-reaction.visible { opacity:1; transform:translateY(0); }
 
+/* Notifications dropdown + toast */
+.notification-dropdown {
+  position: absolute;
+  top: 68px;
+  right: 40px;
+  width: 360px;
+  max-height: 70vh;
+  background: var(--white);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1200;
+}
+.notification-dropdown .nd-header {
+  padding: 12px 14px; font-weight:700; border-bottom:1px solid var(--gray-100); display:flex; justify-content:space-between; align-items:center;
+}
+.notification-dropdown .nd-list { overflow:auto; padding: 8px; }
+.notification-dropdown .nd-footer { padding: 10px; border-top: 1px solid var(--gray-100); text-align:right; }
+.notification-dropdown .nd-list .nt-item { display:flex; gap:10px; padding:10px; border-radius:8px; cursor:pointer; align-items:flex-start; }
+.notification-dropdown .nd-list .nt-item.unread { background: var(--purple-bg); }
+.notification-dropdown .nd-list .nt-item .nt-left { width:36px; height:36px; border-radius:8px; background:linear-gradient(135deg,var(--blue),var(--purple)); color:white; display:flex; align-items:center; justify-content:center; }
+.notification-dropdown .nd-list .nt-item .nt-body { flex:1; }
+.notification-dropdown .nd-list .nt-item .nt-title { font-weight:700; color:var(--navy); }
+.notification-dropdown .nd-list .nt-item .nt-sub { font-size:13px; color:var(--gray-600); margin-top:6px; }
+.notification-dropdown .nd-list .nt-item .nt-time { font-size:12px; color:var(--gray-400); margin-top:6px; }
+
+.lt-toast { position: fixed; right: 20px; bottom: 20px; background: white; border-radius:10px; padding:12px 14px; box-shadow:var(--shadow-md); opacity:0; transform:translateY(8px); transition:all .3s ease; z-index:1400; max-width:320px; }
+.lt-toast.visible { opacity:1; transform:translateY(0); }
+.lt-toast .lt-toast-body { margin-top:6px; color:var(--gray-700); }
+.lt-toast .lt-toast-actions { margin-top:8px; text-align:right; }
+.lt-toast .lt-toast-actions a { color:var(--blue); font-weight:600; }
+
 .lesson-grid { display:grid; gap:10px; }
 
 .student-activity-icon {

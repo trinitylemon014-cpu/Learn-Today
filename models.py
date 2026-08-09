@@ -37,10 +37,24 @@ class Notification(db.Model):
     title = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False)
     link = db.Column(db.String(300), nullable=True)
-    kind = db.Column(db.String(30), nullable=False, default='notification')  # notification/reminder
+    kind = db.Column(db.String(30), nullable=False, default='notification')  # notification/reminder/group_message/assignment
     is_read = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     reminder_for = db.Column(db.DateTime, nullable=True)
+
+    # Extended fields for group messages and future types
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    target_url = db.Column(db.String(300), nullable=True)
+    metadata = db.Column(db.JSON, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'message_id', 'kind', name='uq_notifications_user_message_kind'),
+    )
+
+    sender = db.relationship('User', foreign_keys=[sender_id])
 
 class ApplicationPageConfig(db.Model):
     __tablename__ = 'application_page_config'

@@ -194,9 +194,133 @@
   window.LearnTogether.currentUserId = {{ current_user.id if current_user else 'null' }};
   window.LearnTogether.userGroupIds = {{ user_group_ids|tojson }};
   window.LearnTogether.currentUserName = {{ current_user.name|tojson if current_user else 'null' }};
+  window.LearnTogether.SUPABASE_URL = {{ SUPABASE_URL|tojson }};
+  window.LearnTogether.SUPABASE_ANON_KEY = {{ SUPABASE_ANON_KEY|tojson }};
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<!-- Supabase realtime notifications subscription -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  (function() {
+    const uid = window.LearnTogether && window.LearnTogether.currentUserId;
+    const url = window.LearnTogether && window.LearnTogether.SUPABASE_URL;
+    const key = window.LearnTogether && window.LearnTogether.SUPABASE_ANON_KEY;
+    if (!uid || !url || !key) return;
+
+    try {
+      const supabase = window.supabase = supabaseJs.createClient(url, key);
+
+      // helper: render dropdown items
+      const createNotificationItem = (n) => {
+        const el = document.createElement('div');
+        el.className = 'nt-item' + (n.is_read ? ' read' : ' unread');
+        el.dataset.id = n.id;
+        el.innerHTML = `
+          <div class="nt-left">💬</div>
+          <div class="nt-body">
+            <div class="nt-title">${(n.title||'').replace(/</g,'&lt;')}</div>
+            <div class="nt-sub">${(n.body||'').replace(/</g,'&lt;')}</div>
+            <div class="nt-time">${new Date(n.created_at).toLocaleString()}</div>
+          </div>
+        `;
+        el.addEventListener('click', (e) => {
+          // mark read then navigate
+          fetch(`/api/notifications/${n.id}/mark_read`, { method: 'POST' }).finally(() => {
+            window.location.href = n.link || '/notifications';
+          });
+        });
+        return el;
+      };
+
+      const dropdown = document.createElement('div');
+      dropdown.id = 'notificationDropdown';
+      dropdown.className = 'notification-dropdown';
+      dropdown.style.display = 'none';
+      dropdown.innerHTML = '<div class="nd-header">Notifications <a href="/notifications" class="nd-viewall">View all</a></div><div class="nd-list"></div><div class="nd-footer"><button id="markAllReadBtn" class="btn">Mark all as read</button></div>';
+      document.body.appendChild(dropdown);
+
+      const listEl = dropdown.querySelector('.nd-list');
+      const bellBtn = document.querySelector('.topbar .topbar-btn[aria-label="Notifications"]');
+
+      function openDropdown() { dropdown.style.display = 'block'; }
+      function closeDropdown() { dropdown.style.display = 'none'; }
+
+      if (bellBtn) {
+        bellBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (dropdown.style.display === 'block') { closeDropdown(); } else { fetchNotifications().then(openDropdown); }
+        });
+      }
+
+      async function fetchNotifications() {
+        try {
+          const res = await fetch('/api/notifications');
+          if (!res.ok) return;
+          const data = await res.json();
+          listEl.innerHTML = '';
+          (data.notifications || []).slice(0, 20).forEach(n => {
+            listEl.appendChild(createNotificationItem(n));
+          });
+          // update badge
+          const badgeEl = document.querySelector('.topbar-badge');
+          if (badgeEl) {
+            const u = data.unread_count || 0;
+            if (u <= 0) badgeEl.remove(); else badgeEl.textContent = u > 99 ? '99+' : String(u);
+          }
+        } catch (e) { console.warn(e); }
+      }
+
+      dropdown.querySelector('#markAllReadBtn')?.addEventListener('click', async () => {
+        await fetch('/api/notifications/mark_all_read', { method: 'POST' });
+        // refresh list
+        fetchNotifications();
+      });
+
+      // subscribe to notifications inserted for this user
+      supabase.channel('public:notifications')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, (payload) => {
+          const newRow = payload.new;
+          // prepend into dropdown
+          try {
+            const node = createNotificationItem({
+              id: newRow.id, title: newRow.title, body: newRow.body, link: newRow.link, is_read: false, created_at: newRow.created_at
+            });
+            listEl.insertBefore(node, listEl.firstChild);
+          } catch (e) {}
+          // update badge
+          const badgeEl = document.querySelector('.topbar-badge');
+          let count = 0;
+          if (badgeEl) {
+            count = parseInt(badgeEl.textContent || '0', 10) || 0;
+            count = Math.min(999, count + 1);
+            badgeEl.textContent = count > 99 ? '99+' : String(count);
+          } else {
+            const bell = document.querySelector('.topbar .topbar-btn[aria-label="Notifications"]');
+            if (bell) {
+              const span = document.createElement('span');
+              span.className = 'topbar-badge';
+              span.textContent = '1';
+              bell.appendChild(span);
+            }
+          }
+
+          // show lightweight toast
+          try {
+            const t = document.createElement('div');
+            t.className = 'lt-toast';
+            t.innerHTML = `<strong>New message</strong><div class=\"lt-toast-body\">${(newRow.title||'').replace(/</g,'&lt;')}</div><div class=\"lt-toast-actions\"><a href=\"${newRow.link || '/notifications'}\">Open</a></div>`;
+            document.body.appendChild(t);
+            setTimeout(()=>{ t.classList.add('visible'); }, 50);
+            setTimeout(()=>{ t.classList.remove('visible'); setTimeout(()=>t.remove(),300); }, 8000);
+          } catch(e) {}
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('Supabase notifications init failed', e);
+    }
+  })();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
