@@ -132,7 +132,7 @@ if USE_SUPABASE and SUPABASE_DB_URL:
         database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
+    db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
     app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -143,7 +143,6 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename, allowed_extensions):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
-
 
 def attachment_type_for(filename):
     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
