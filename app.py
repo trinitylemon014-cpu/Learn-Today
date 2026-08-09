@@ -132,7 +132,8 @@ if USE_SUPABASE and SUPABASE_DB_URL:
         database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(instance_path, 'database.db').replace('\\', '/')}"
+db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.logger.info('Supabase mode enabled' if USE_SUPABASE else 'Using local SQLite fallback')
