@@ -41,8 +41,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '').strip()
 SUPABASE_DB_URL = os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL')
 SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'media')
 USE_SUPABASE = bool(SUPABASE_DB_URL or (SUPABASE_URL and SUPABASE_ANON_KEY))
-SUPABASE_ENABLED = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
-supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY) if SUPABASE_ENABLED and create_client else None
+SUPABASE_ENABLED = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
+supabase_client = create_client(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+) if SUPABASE_ENABLED and create_client else None
 
 # In-memory throttle map for typing events: {(group_id, sender): timestamp}
 typing_last_by_sender = {}
