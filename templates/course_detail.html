@@ -15,8 +15,8 @@
     <div class="card" style="margin-bottom:20px">
       <div style="margin-bottom:16px">
         {% if course.thumbnail %}
-          {% if course.thumbnail.startswith('uploads/') %}
-          <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }} thumbnail" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--r-md);margin-bottom:16px">
+          {% if course.thumbnail.startswith('uploads/') or course.thumbnail.startswith('http') %}
+          <img src="{{ media_url(course.thumbnail) }}" alt="{{ course.title }} thumbnail" style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--r-md);margin-bottom:16px">
           {% else %}
           <div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-md);background:linear-gradient(135deg,var(--blue),var(--purple));color:white;font-size:32px;font-weight:700;margin-bottom:16px">
             {{ course.thumbnail[:2].upper() }}
@@ -101,7 +101,7 @@
           </div>
           {% if lesson.poster_url %}
           <div class="lesson-poster">
-            <img src="{{ url_for('static', filename=lesson.poster_url) }}" alt="Lesson poster for {{ lesson.title }}">
+            <img src="{{ media_url(lesson.poster_url) }}" alt="Lesson poster for {{ lesson.title }}">
           </div>
           {% endif %}
           {% if lesson.description %}
