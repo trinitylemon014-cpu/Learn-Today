@@ -16,9 +16,9 @@
 <div class="course-grid">
   {% for course in courses %}
   <a href="{{ url_for('course_detail', course_id=course.id) }}" class="course-card">
-    <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
-      {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
-        <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
+    <div class="course-card-thumb {% if course.thumbnail and (course.thumbnail.startswith('uploads/') or course.thumbnail.startswith('http')) %}has-image{% endif %}">
+      {% if course.thumbnail and (course.thumbnail.startswith('uploads/') or course.thumbnail.startswith('http')) %}
+        <img src="{{ media_url(course.thumbnail) }}" alt="{{ course.title }}">
       {% elif course.thumbnail %}
         <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
       {% else %}
@@ -81,9 +81,9 @@
     <div class="course-grid">
       {% for course in courses %}
       <a href="{{ url_for('course_detail', course_id=course.id) }}" class="course-card">
-        <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
-          {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
-            <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
+        <div class="course-card-thumb {% if course.thumbnail and (course.thumbnail.startswith('uploads/') or course.thumbnail.startswith('http')) %}has-image{% endif %}">
+          {% if course.thumbnail and (course.thumbnail.startswith('uploads/') or course.thumbnail.startswith('http')) %}
+            <img src="{{ media_url(course.thumbnail) }}" alt="{{ course.title }}">
           {% elif course.thumbnail %}
             <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
           {% else %}
