@@ -197,7 +197,7 @@
   window.LearnTogether.SUPABASE_URL = {{ SUPABASE_URL|tojson }};
   window.LearnTogether.SUPABASE_ANON_KEY = {{ SUPABASE_ANON_KEY|tojson }};
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <!-- Supabase realtime notifications subscription -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -209,7 +209,8 @@
     if (!uid || !url || !key) return;
 
     try {
-      const supabase = window.supabase = supabaseJs.createClient(url, key);
+      const supabaseClient = supabase.createClient(url, key);
+      window.supabase = supabaseClient;
 
       // helper: render dropdown items
       const createNotificationItem = (n) => {
@@ -278,7 +279,7 @@
       });
 
       // subscribe to notifications inserted for this user
-      supabase.channel('public:notifications')
+      supabaseClient.channel('public:notifications')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, (payload) => {
           const newRow = payload.new;
           // prepend into dropdown
