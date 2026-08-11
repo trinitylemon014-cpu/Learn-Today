@@ -131,11 +131,11 @@
             {% if msg.attachment_url %}
             <div class="msg-attachment attachment-{{ msg.attachment_type or 'file' }}">
               {% if msg.attachment_type == 'image' %}
-              <img src="{{ url_for('static', filename=msg.attachment_url) }}" alt="{{ msg.attachment_name or 'image' }}">
+              <img src="{{ media_url(msg.attachment_url) }}" alt="{{ msg.attachment_name or 'image' }}">
               {% elif msg.attachment_type == 'video' %}
-              <video controls preload="metadata" src="{{ url_for('static', filename=msg.attachment_url) }}"></video>
+              <video controls preload="metadata" src="{{ media_url(msg.attachment_url) }}"></video>
               {% else %}
-              <a href="{{ url_for('static', filename=msg.attachment_url) }}" target="_blank" class="attachment-file">
+              <a href="{{ media_url(msg.attachment_url) }}" target="_blank" class="attachment-file">
                 <span class="attachment-icon">📎</span>
                 <span>{{ msg.attachment_name or 'Attachment' }}</span>
               </a>
@@ -348,7 +348,6 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-d3DtXfH0wHaTairqdPNhcR842QAYxSqBbY2F4Zvs5+WyQj7uG3Z2XLyvDiP3CsCIdUDxkoRjk7i+uyVe3xg/ww==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
@@ -952,4 +951,3 @@ window.addEventListener('load', () => {
   </div>
 </div>
 {% endblock %}
-
