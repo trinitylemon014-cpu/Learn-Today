@@ -31,21 +31,48 @@ ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'
 app = Flask(__name__)
 app.secret_key = 'learntogether2030secretkey'
 socketio = SocketIO(app)
-instance_path = os.path.join(app.root_path, 'instance')
 if load_dotenv is not None:
     load_dotenv()
 
 SUPABASE_URL = os.getenv('SUPABASE_URL', '').strip()
 SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '').strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '').strip()
-SUPABASE_DB_URL = os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL')
-SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'media')
-USE_SUPABASE = bool(SUPABASE_DB_URL or (SUPABASE_URL and SUPABASE_ANON_KEY))
-SUPABASE_ENABLED = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
+SUPABASE_DB_URL = (os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL') or '').strip()
+SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'media').strip()
+
+
+def validate_supabase_config():
+    """
+    This app only supports Supabase (Postgres + Storage bucket) as its
+    backend. There is no local SQLite / local-disk fallback. Fail fast
+    and loud at startup if anything required is missing, rather than
+    silently falling back to a different backend or crashing later on
+    a random request.
+    """
+    missing = []
+    if not SUPABASE_DB_URL:
+        missing.append('SUPABASE_DB_URL (or DATABASE_URL)')
+    if not SUPABASE_URL:
+        missing.append('SUPABASE_URL')
+    if not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+        missing.append('SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY')
+    if create_client is None:
+        missing.append("the 'supabase' package (pip install supabase)")
+
+    if missing:
+        raise RuntimeError(
+            'This app requires Supabase to be fully configured — there is no '
+            'local database fallback. Missing/invalid: ' + '; '.join(missing)
+        )
+
+
+validate_supabase_config()
+
+SUPABASE_ENABLED = True
 supabase_client = create_client(
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
-) if SUPABASE_ENABLED and create_client else None
+)
 
 # In-memory throttle map for typing events: {(group_id, sender): timestamp}
 typing_last_by_sender = {}
@@ -123,22 +150,16 @@ def handle_message_seen(data):
             # notify room about seen status so sender can update UI
             msg = {'messageId': message_id, 'userId': user_id, 'status': 'seen'}
             socketio.emit('message-status', msg, room=f'group_{group_id}', include_self=False)
-os.makedirs(instance_path, exist_ok=True)
-if USE_SUPABASE and SUPABASE_DB_URL:
-    database_url = SUPABASE_DB_URL
-    if database_url.startswith('postgresql://'):
-        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
-    elif database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-else:
-    db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.logger.info('Supabase mode enabled' if USE_SUPABASE else 'Using local SQLite fallback')
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+database_url = SUPABASE_DB_URL
+if database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+elif database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.logger.info('Supabase mode enabled (only supported backend)')
 
 
 def allowed_file(filename, allowed_extensions):
@@ -215,33 +236,54 @@ def attachment_meta_label(filename, attachment_type):
 
 
 def save_uploaded_file(upload, folder, allowed_extensions):
+    """
+    Always uploads to the Supabase Storage bucket. There is no local-disk
+    fallback — this app requires Supabase Storage to be configured.
+    Returns the public URL on success, or None if there was no valid file.
+    """
     if upload and upload.filename and allowed_file(upload.filename, allowed_extensions):
         filename = secure_filename(upload.filename)
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
         unique_name = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
         storage_path = f"{folder}/{unique_name}"
 
-        if USE_SUPABASE and supabase_client:
-            content = upload.read()
-            if not content:
-                return None
-            content_type = upload.mimetype or upload.content_type or 'application/octet-stream'
-            try:
-                supabase_client.storage.from_(SUPABASE_STORAGE_BUCKET).upload(
-                    storage_path,
-                    content,
-                    file_options={'content-type': content_type}
-                )
-                return supabase_client.storage.from_(SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
-            except Exception as exc:
-                raise RuntimeError(f'Supabase storage upload failed: {exc}') from exc
-
-        dest_folder = os.path.join(app.config['UPLOAD_FOLDER'], folder)
-        os.makedirs(dest_folder, exist_ok=True)
-        path = os.path.join(dest_folder, unique_name)
-        upload.save(path)
-        return f'uploads/{folder}/{unique_name}'
+        content = upload.read()
+        if not content:
+            return None
+        content_type = upload.mimetype or upload.content_type or 'application/octet-stream'
+        try:
+            supabase_client.storage.from_(SUPABASE_STORAGE_BUCKET).upload(
+                storage_path,
+                content,
+                file_options={'content-type': content_type}
+            )
+            return supabase_client.storage.from_(SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
+        except Exception as exc:
+            raise RuntimeError(f'Supabase storage upload failed: {exc}') from exc
     return None
+
+
+def delete_supabase_file(url_or_path):
+    """
+    Deletes a file from the Supabase Storage bucket given its public URL
+    (or a bare storage path). Safe to call with None/empty — no-ops.
+    Never raises; storage cleanup failures shouldn't break the request.
+    """
+    if not url_or_path:
+        return
+    try:
+        # Public URLs look like: https://.../storage/v1/object/public/<bucket>/<path>
+        marker = f'/object/public/{SUPABASE_STORAGE_BUCKET}/'
+        if marker in url_or_path:
+            storage_path = url_or_path.split(marker, 1)[1]
+        elif url_or_path.startswith(('http://', 'https://')):
+            # Unrecognized URL shape (e.g. a user-supplied external URL) — don't touch it.
+            return
+        else:
+            storage_path = url_or_path
+        supabase_client.storage.from_(SUPABASE_STORAGE_BUCKET).remove([storage_path])
+    except Exception as exc:
+        app.logger.warning('Supabase storage delete failed for %s: %s', url_or_path, exc)
 
 
 db.init_app(app)
@@ -331,14 +373,23 @@ def initials_for_name(name):
 
 
 def build_static_url(path):
+    """
+    Resolve a stored media path to a browser-usable URL. Since Supabase
+    Storage is the only backend, stored values are always either a full
+    Supabase public URL (returned as-is) or empty/None.
+    """
     if not path:
         return None
     if isinstance(path, str) and path.startswith(('http://', 'https://')):
         return path
-    try:
-        return url_for('static', filename=path)
-    except Exception:
-        return f"/static/{path}"
+    # Legacy/unexpected non-URL value — nothing local to resolve it against.
+    return None
+
+
+def media_url(path):
+    """Jinja-exposed alias for build_static_url, used by templates as
+    `{{ media_url(course.thumbnail) }}` etc."""
+    return build_static_url(path)
 
 
 TABLE_NAME_BY_MODEL = {
@@ -397,7 +448,7 @@ def _model_to_payload(obj):
 
 
 def sync_model_to_supabase(obj):
-    if not USE_SUPABASE or not supabase_client or not obj:
+    if not supabase_client or not obj:
         return
     table_name = TABLE_NAME_BY_MODEL.get(type(obj))
     if not table_name:
@@ -459,17 +510,8 @@ def group_identity(group):
 
 def ensure_database_schema():
     with app.app_context():
-        try:
-            _ensure_sqlalchemy_engine()
-            inspector = db.inspect(db.engine)
-        except Exception as exc:
-            app.logger.warning('Supabase/Postgres schema inspection failed, using local SQLite fallback: %s', exc)
-            db_path = os.path.join(instance_path, 'database.db').replace('\\', '/')
-            app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
-            db.session.remove()
-            db.engines.pop(None, None)
-            _ensure_sqlalchemy_engine()
-            inspector = db.inspect(db.engine)
+        _ensure_sqlalchemy_engine()
+        inspector = db.inspect(db.engine)
 
         existing_tables = inspector.get_table_names()
         try:
@@ -616,6 +658,7 @@ def inject_user():
         'user_group_ids': user_group_ids,
         'SUPABASE_URL': SUPABASE_URL,
         'SUPABASE_ANON_KEY': SUPABASE_ANON_KEY,
+        'media_url': media_url,
     }
 
 
@@ -971,14 +1014,8 @@ def edit_course(course_id):
         thumbnail_file = request.files.get('thumbnail_file')
         saved_thumbnail = save_uploaded_file(thumbnail_file, 'thumbnails', ALLOWED_IMAGE_EXTENSIONS)
         if saved_thumbnail:
-            # remove old thumbnail file if it was uploaded
-            if course.thumbnail and course.thumbnail.startswith('uploads/'):
-                try:
-                    old_path = os.path.join('static', course.thumbnail)
-                    if os.path.exists(old_path):
-                        os.remove(old_path)
-                except Exception:
-                    pass
+            # remove old thumbnail from the Supabase bucket if it was an uploaded file
+            delete_supabase_file(course.thumbnail)
             course.thumbnail = saved_thumbnail
         elif thumbnail:
             course.thumbnail = thumbnail
@@ -1002,13 +1039,7 @@ def delete_course(course_id):
         flash('Access denied.', 'error')
         return redirect(url_for('course_detail', course_id=course.id))
 
-    if course.thumbnail and course.thumbnail.startswith('uploads/'):
-        try:
-            thumbnail_path = os.path.join('static', course.thumbnail)
-            if os.path.exists(thumbnail_path):
-                os.remove(thumbnail_path)
-        except Exception:
-            pass
+    delete_supabase_file(course.thumbnail)
 
     course_groups = Group.query.filter_by(course_id=course.id).all()
     group_ids = [g.id for g in course_groups]
@@ -1176,15 +1207,15 @@ def add_content(course_id):
         if content_type == 'video' and content_file and content_file.filename:
             saved_video = save_uploaded_file(content_file, 'videos', ALLOWED_VIDEO_EXTENSIONS)
             if saved_video:
-                content_url = url_for('static', filename=saved_video)
+                content_url = saved_video
         elif content_type == 'presentation' and content_file and content_file.filename:
             saved_presentation = save_uploaded_file(content_file, 'presentations', ALLOWED_PRESENTATION_EXTENSIONS)
             if saved_presentation:
-                content_url = url_for('static', filename=saved_presentation)
+                content_url = saved_presentation
         elif content_type == 'document' and content_file and content_file.filename:
             saved_document = save_uploaded_file(content_file, 'documents', ALLOWED_DOCUMENT_EXTENSIONS)
             if saved_document:
-                content_url = url_for('static', filename=saved_document)
+                content_url = saved_document
         if content_type == 'video' and not content_url:
             flash('Please provide a video URL or upload a video file.', 'error')
             return render_template('add_content.html', course=course)
@@ -1235,15 +1266,9 @@ def delete_content(content_id):
         flash('Access denied.', 'error')
         return redirect(url_for('course_detail', course_id=course.id))
 
-    if content.content_url and content.content_url.startswith(url_for('static', filename='')):
-        # preserve remote URLs; delete only local uploads
-        local_path = content.content_url.replace(url_for('static', filename=''), '')
-        absolute_path = os.path.join(app.root_path, 'static', local_path)
-        if os.path.exists(absolute_path):
-            try:
-                os.remove(absolute_path)
-            except OSError:
-                pass
+    # Only delete files that live in our Supabase bucket; leave arbitrary
+    # remote URLs (e.g. YouTube links) alone.
+    delete_supabase_file(content.content_url)
     db.session.delete(content)
     db.session.commit()
     flash('Module removed successfully.', 'success')
@@ -1292,13 +1317,7 @@ def update_group_avatar(group_id):
     avatar_file = request.files.get('group_avatar')
     saved_path = save_uploaded_file(avatar_file, 'group_avatars', ALLOWED_IMAGE_EXTENSIONS)
     if saved_path:
-        if group.avatar:
-            try:
-                old_path = os.path.join('static', group.avatar)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-            except Exception:
-                pass
+        delete_supabase_file(group.avatar)
         group.avatar = saved_path
         db.session.commit()
         flash('Group picture updated!', 'success')
@@ -2235,13 +2254,7 @@ def admin_media_delete(media_id):
     
     media = SiteMedia.query.get_or_404(media_id)
     
-    # Delete file
-    try:
-        file_path = os.path.join('static', media.file_path)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-    except Exception:
-        pass
+    delete_supabase_file(media.file_path)
     
     db.session.delete(media)
     db.session.commit()
@@ -2313,14 +2326,7 @@ def profile():
             avatar_file = request.files.get('avatar')
             saved_path = save_uploaded_file(avatar_file, 'avatars', ALLOWED_IMAGE_EXTENSIONS)
             if saved_path:
-                # remove old avatar file if present
-                if user.avatar:
-                    try:
-                        old_path = os.path.join('static', user.avatar)
-                        if os.path.exists(old_path):
-                            os.remove(old_path)
-                    except Exception:
-                        pass
+                delete_supabase_file(user.avatar)
                 user.avatar = saved_path
             elif avatar_file and avatar_file.filename:
                 flash('Unsupported avatar format. Please upload PNG, JPG, JPEG, GIF, WEBP, or AVIF.', 'error')
