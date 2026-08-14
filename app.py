@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, get_flashed_messages
 from flask_socketio import SocketIO, join_room, leave_room
 from models import db, User, Course, Enrollment, Group, GroupMember, Message, MessageVisibility, MessageDelivery, Progress, ActivityLog, Attendance, AttendanceSession, CourseContent, Notification, ApplicationPageConfig, ScheduledLesson, CalendarEvent, SiteMedia
@@ -35,11 +38,21 @@ socketio = SocketIO(app)
 if load_dotenv is not None:
     load_dotenv()
 
-SUPABASE_URL = os.getenv('SUPABASE_URL', '').strip()
-SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '').strip()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '').strip()
-SUPABASE_DB_URL = (os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL') or '').strip()
-SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'media').strip()
+database_url = SUPABASE_DB_URL
+if database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+elif database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgres+psycopg://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# ─── ADD THIS TO DISABLE SQLALCHEMY QUEUE POOL LOCKS ─────────────────────────
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'poolclass': NullPool,
+}
+
+app.logger.info('Supabase mode enabled (only supported backend)')
 
 
 def validate_supabase_config():
