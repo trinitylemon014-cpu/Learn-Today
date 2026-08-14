@@ -21,7 +21,7 @@
       {% for media_item in login_images %}
       <div class="card" style="background:var(--gray-50);padding:12px;border:1px solid var(--gray-200)">
         <div style="width:100%;height:200px;background:var(--gray-200);border-radius:6px;overflow:hidden;margin-bottom:12px">
-          <img src="{{ url_for('static', filename=media_item.file_path) }}" alt="Login image" style="width:100%;height:100%;object-fit:cover">
+         <img src="{{ media_url(media_item.file_path) }}" alt="Login image" style="width:100%;height:100%;object-fit:cover">
         </div>
         {% if media_item.title %}
           <p style="margin:0;font-weight:600;color:var(--navy);margin-bottom:4px">{{ media_item.title }}</p>
@@ -80,7 +80,7 @@
       {% for media_item in signup_images %}
       <div class="card" style="background:var(--gray-50);padding:12px;border:1px solid var(--gray-200)">
         <div style="width:100%;height:200px;background:var(--gray-200);border-radius:6px;overflow:hidden;margin-bottom:12px">
-          <img src="{{ url_for('static', filename=media_item.file_path) }}" alt="Signup image" style="width:100%;height:100%;object-fit:cover">
+         <img src="{{ media_url(media_item.file_path) }}" alt="Signup image" style="width:100%;height:100%;object-fit:cover">
         </div>
         {% if media_item.title %}
           <p style="margin:0;font-weight:600;color:var(--navy);margin-bottom:4px">{{ media_item.title }}</p>
