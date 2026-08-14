@@ -13,7 +13,7 @@
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--gray-200)">
       <div class="user-avatar" style="width:68px;height:68px;font-size:28px">
         {% if user.avatar %}
-          <img src="{{ url_for('static', filename=user.avatar) }}" alt="avatar">
+         <img src="{{ media_url(user.avatar) }}" alt="avatar">
         {% else %}
           {{ user.name[0].upper() }}
         {% endif %}
@@ -33,7 +33,7 @@
         <input type="file" name="avatar" accept="image/*" class="form-control">
         {% if user.avatar %}
         <div style="margin-top:8px">
-          <img src="{{ url_for('static', filename=user.avatar) }}" style="width:80px;height:80px;border-radius:9999px;object-fit:cover;display:block">
+         <img src="{{ media_url(user.avatar) }}" style="width:80px;height:80px;border-radius:9999px;object-fit:cover;display:block">
         </div>
         {% endif %}
       </div>
