@@ -19,6 +19,7 @@ import threading
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text, create_engine
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.pool import NullPool
 import calendar
 import random
 import string
@@ -175,16 +176,6 @@ def handle_message_seen(data):
             # notify room about seen status so sender can update UI
             msg = {'messageId': message_id, 'userId': user_id, 'status': 'seen'}
             socketio.emit('message-status', msg, room=f'group_{group_id}', include_self=False)
-
-
-database_url = SUPABASE_DB_URL
-if database_url.startswith('postgresql://'):
-    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
-elif database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.logger.info('Supabase mode enabled (only supported backend)')
 
 
 def allowed_file(filename, allowed_extensions):
