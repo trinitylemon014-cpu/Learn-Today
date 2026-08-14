@@ -38,9 +38,16 @@ app.secret_key = 'learntogether2030secretkey'
 socketio = SocketIO(app)
 if load_dotenv is not None:
     load_dotenv()
+# ─── SUPABASE CONFIGURATION ──────────────────────────────────────────────────
+SUPABASE_DB_URL = os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL')
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
+SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'media')
+
 # ─── DATABASE CONFIGURATION ──────────────────────────────────────────────────
 # 1. Fetch URL safely from environment variables (checks SUPABASE_DB_URL first, then DATABASE_URL)
-database_url = os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL')
+database_url = SUPABASE_DB_URL
 
 # 2. Fail early with a clear error message if no environment variable is found
 if not database_url:
@@ -53,7 +60,7 @@ if not database_url:
 if database_url.startswith('postgresql://'):
     database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
 elif database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgres+psycopg://', 1)
+    database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
 
 # 4. Apply configuration to Flask-SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
