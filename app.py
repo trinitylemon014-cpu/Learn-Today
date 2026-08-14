@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover
     create_client = None
 
 import os
+import threading
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text, create_engine
 from sqlalchemy.exc import OperationalError
@@ -594,17 +595,46 @@ def ensure_database_schema():
             db.session.commit()
 
 
-@app.before_request
-def ensure_schema_on_request():
-    ensure_database_schema()
-    ensure_demo_accounts_exist()
+# ─── THREAD-SAFE, ONE-TIME DATABASE INITIALIZATION ─────────────────────────
+# Previously, ensure_database_schema() (and, redundantly, demo-account
+# seeding) ran on *every single request* via @app.before_request, plus
+# again at import time. Under Gunicorn, several worker threads could hit
+# this simultaneously and race on engine/connection-pool creation
+# (SQLAlchemy's QueuePool wraps a threading.Lock internally), producing:
+#   RuntimeError: cannot notify on un-acquired lock
+#
+# Fix: initialize once, at startup, inside an app context. If a request
+# ever slips in before that startup init has completed (e.g. during a
+# rolling deploy), fall back to a double-checked-locking lazy init so at
+# most one thread ever does the actual work.
+_schema_lock = threading.Lock()
+_schema_ready = False
+
+
+def initialize_database():
+    """Idempotent, thread-safe bootstrap: schema migration + demo accounts.
+
+    Safe to call from multiple threads concurrently — only the first
+    caller does real work; everyone else returns immediately once the
+    ready flag is set.
+    """
+    global _schema_ready
+    if _schema_ready:
+        return
+    with _schema_lock:
+        if _schema_ready:  # double-checked locking
+            return
+        with app.app_context():
+            ensure_database_schema()
+            ensure_demo_accounts_exist()
+        _schema_ready = True
 
 
 def get_current_user():
-    try:
-        ensure_database_schema()
-    except Exception:
-        return None
+    # Lazy safety net: normally initialize_database() has already run at
+    # startup, so this is just a flag check and returns immediately.
+    if not _schema_ready:
+        initialize_database()
 
     if 'user_id' in session:
         try:
@@ -661,8 +691,6 @@ def inject_user():
         'media_url': media_url,
     }
 
-
-ensure_database_schema()
 
 # ─── AUTH ROUTES ────────────────────────────────────────────────────────────
 @app.route('/')
@@ -2559,26 +2587,28 @@ def seed_data(create_demo_accounts=False):
     db.session.commit()
     print("✅ Seed data created!")
 
-with app.app_context():
-    ensure_database_schema()
-
 
 def ensure_demo_accounts_exist():
-    with app.app_context():
-        ensure_database_schema()
-        demo_emails = {
-            'admin@learntogether.com',
-            'teacher@learntogether.com',
-            'student@learntogether.com',
-            'sarah@learntogether.com',
-            'parent@learntogether.com',
-        }
-        existing_emails = {user.email for user in User.query.filter(User.email.in_(list(demo_emails))).all()}
-        if len(existing_emails) < len(demo_emails):
-            seed_data(create_demo_accounts=True)
+    demo_emails = {
+        'admin@learntogether.com',
+        'teacher@learntogether.com',
+        'student@learntogether.com',
+        'sarah@learntogether.com',
+        'parent@learntogether.com',
+    }
+    existing_emails = {user.email for user in User.query.filter(User.email.in_(list(demo_emails))).all()}
+    if len(existing_emails) < len(demo_emails):
+        seed_data(create_demo_accounts=True)
 
 
-ensure_demo_accounts_exist()
+# ─── STARTUP INITIALIZATION ─────────────────────────────────────────────────
+# Runs once, here, inside an app context — NOT on every request, and not
+# racing across threads. This is what actually fixes the
+# "cannot notify on un-acquired lock" crash: the engine/connection pool is
+# now built exactly once, before Gunicorn is serving traffic.
+with app.app_context():
+    initialize_database()
+
 
 # Debug-only helper: rebuild database and reseed default accounts when app.debug is True.
 @app.route('/_dev/reset-defaults', methods=['GET', 'POST'])
@@ -2592,7 +2622,4 @@ def _dev_reset_defaults():
     return ('Default accounts reset', 200)
 
 if __name__ == '__main__':
-    with app.app_context():
-        ensure_database_schema()
-        seed_data(create_demo_accounts=True)
     socketio.run(app, debug=True, port=5000)
