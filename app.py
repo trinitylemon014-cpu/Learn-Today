@@ -37,17 +37,28 @@ app.secret_key = 'learntogether2030secretkey'
 socketio = SocketIO(app)
 if load_dotenv is not None:
     load_dotenv()
+# ─── DATABASE CONFIGURATION ──────────────────────────────────────────────────
+# 1. Fetch URL safely from environment variables (checks SUPABASE_DB_URL first, then DATABASE_URL)
+database_url = os.getenv('SUPABASE_DB_URL') or os.getenv('DATABASE_URL')
 
-database_url = SUPABASE_DB_URL
+# 2. Fail early with a clear error message if no environment variable is found
+if not database_url:
+    raise RuntimeError(
+        "DATABASE ERROR: Neither 'SUPABASE_DB_URL' nor 'DATABASE_URL' is set in your environment variables. "
+        "Please add SUPABASE_DB_URL in your Render Environment settings."
+    )
+
+# 3. Format driver connection string for psycopg
 if database_url.startswith('postgresql://'):
     database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
 elif database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgres+psycopg://', 1)
 
+# 4. Apply configuration to Flask-SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# ─── ADD THIS TO DISABLE SQLALCHEMY QUEUE POOL LOCKS ─────────────────────────
+# 5. Disable internal pooling locks (prevents greenlet lock crashes on Render)
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'poolclass': NullPool,
 }
