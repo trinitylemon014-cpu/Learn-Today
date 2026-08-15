@@ -112,17 +112,17 @@
     <div class="course-grid">
       {% for course in courses %}
       <div class="course-card">
-        <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}has-image{% endif %}">
-          {% if course.thumbnail and course.thumbnail.startswith('uploads/') %}
-            <img src="{{ url_for('static', filename=course.thumbnail) }}" alt="{{ course.title }}">
-          {% elif course.thumbnail %}
-            <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
-          {% else %}
-            <span style="position:relative;z-index:1;font-size:52px">
-              <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
-            </span>
-          {% endif %}
-        </div>
+       <div class="course-card-thumb {% if course.thumbnail and course.thumbnail.startswith('http') %}has-image{% endif %}">
+  {% if course.thumbnail and course.thumbnail.startswith('http') %}
+    <img src="{{ media_url(course.thumbnail) }}" alt="{{ course.title }}">
+  {% elif course.thumbnail %}
+    <div style="position:relative;z-index:1;font-size:28px;color:white;font-weight:700">{{ course.thumbnail }}</div>
+  {% else %}
+    <span style="position:relative;z-index:1;font-size:52px">
+      <span class="svg-icon icon-courses icon-lg" aria-hidden="true"></span>
+    </span>
+  {% endif %}
+</div>
         <div class="course-card-body">
           <div class="course-card-category">{{ course.category or 'General' }}</div>
           <div class="course-card-title">{{ course.title }}</div>
