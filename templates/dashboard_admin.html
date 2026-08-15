@@ -73,14 +73,15 @@
             <td>
               <div style="display:flex;align-items:center;gap:10px">
                 {% if c.thumbnail %}
-                  {% if c.thumbnail.startswith('uploads/') %}
-                  <img src="{{ url_for('static', filename=c.thumbnail) }}" alt="{{ c.title }} thumbnail" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0">
-                  {% else %}
-                  <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0">
-                    {{ c.thumbnail[:2].upper() }}
-                  </div>
-                  {% endif %}
-                {% else %}
+               {% if c.thumbnail %}
+  {% if c.thumbnail.startswith('http') %}
+  <img src="{{ media_url(c.thumbnail) }}" alt="{{ c.title }} thumbnail" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0">
+  {% else %}
+  <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0">
+    {{ c.thumbnail[:2].upper() }}
+  </div>
+  {% endif %}
+{% else %}
                 <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;color:white;flex-shrink:0">
                   <span class="svg-icon icon-courses" aria-hidden="true"></span>
                 </div>
