@@ -53,9 +53,13 @@
       <div class="card card-sm">
         <div class="flex-between mb-4">
           <div class="flex gap-3" style="align-items:center">
-            <div class="student-course-icon">
-              <span class="svg-icon {{ 'icon-analytics' if 'math' in course.title.lower() else 'icon-courses' }}"></span>
-            </div>
+           <div class="student-course-icon" style="overflow:hidden">
+  {% if course.thumbnail and course.thumbnail.startswith('http') %}
+    <img src="{{ media_url(course.thumbnail) }}" alt="{{ course.title }} thumbnail" style="width:100%;height:100%;object-fit:cover;display:block">
+  {% else %}
+    <span class="svg-icon {{ 'icon-analytics' if 'math' in course.title.lower() else 'icon-courses' }}"></span>
+  {% endif %}
+</div>
             <div>
               <div style="font-weight:700;color:var(--navy);font-size:14px">{{ course.title }}</div>
               <div style="font-size:12px;color:var(--gray-400)">{{ course.teacher.name }}</div>
