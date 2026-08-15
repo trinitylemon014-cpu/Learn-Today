@@ -27,7 +27,7 @@
     <div class="sidebar-user">
       <div class="user-avatar">
         {% if current_user.avatar %}
-          <img src="{{ url_for('static', filename=current_user.avatar) }}" alt="avatar">
+         <img src="{{ media_url(current_user.avatar) }}" alt="avatar">
         {% else %}
           {{ current_user.name[0].upper() }}
         {% endif %}
@@ -141,7 +141,7 @@
         <div class="topbar-user">
             <div class="user-avatar">
               {% if current_user.avatar %}
-                <img src="{{ url_for('static', filename=current_user.avatar) }}" alt="avatar">
+               <img src="{{ media_url(current_user.avatar) }}" alt="avatar">
               {% else %}
                 {{ current_user.name[0].upper() }}
               {% endif %}
