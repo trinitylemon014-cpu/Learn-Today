@@ -1,448 +1,160 @@
-{% extends "base.html" %}
-{% block title %}Principal Dashboard — {{ school.name }}{% endblock %}
+{% extends 'base.html' %}
+{% block title %}{{ school.name }} — Principal Dashboard{% endblock %}
 
 {% block content %}
-<style>
-  .principal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 28px;
-  }
-
-  .principal-header h1 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--navy, #0F1F3D);
-    margin: 0;
-  }
-
-  .principal-header p {
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #5A6478;
-    margin: 4px 0 0;
-  }
-
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-
-  .stat-card {
-    background: var(--white, #FFFFFF);
-    border: 1px solid #E5E9F0;
-    border-radius: 14px;
-    padding: 20px;
-  }
-
-  .stat-card .stat-value {
-    font-family: 'Outfit', sans-serif;
-    font-size: 28px;
-    font-weight: 600;
-    color: var(--navy, #0F1F3D);
-  }
-
-  .stat-card .stat-label {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #8A93A6;
-    margin-top: 4px;
-  }
-
-  .panel-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  .panel {
-    background: var(--white, #FFFFFF);
-    border: 1px solid #E5E9F0;
-    border-radius: 14px;
-    padding: 24px;
-  }
-
-  .panel h2 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--navy, #0F1F3D);
-    margin: 0 0 4px;
-  }
-
-  .panel .panel-sub {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #8A93A6;
-    margin: 0 0 20px;
-  }
-
-  .field { margin-bottom: 14px; }
-
-  .field label {
-    display: block;
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--navy, #0F1F3D);
-    margin-bottom: 6px;
-  }
-
-  .field input[type="text"],
-  .field input[type="email"],
-  .field select {
-    width: 100%;
-    padding: 10px 12px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    border: 1px solid #D9DEE7;
-    border-radius: 9px;
-    background: #FBFCFE;
-    color: var(--navy, #0F1F3D);
-  }
-
-  .field input:focus, .field select:focus {
-    outline: none;
-    border-color: var(--blue, #2563EB);
-    background: #FFFFFF;
-  }
-
-  .btn-primary {
-    padding: 10px 20px;
-    background: var(--blue, #2563EB);
-    color: #FFFFFF;
-    font-family: 'Outfit', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    border: none;
-    border-radius: 9px;
-    cursor: pointer;
-  }
-
-  .btn-primary:hover { background: #1D4ED8; }
-
-  .btn-secondary {
-    padding: 10px 20px;
-    background: #F1F4F9;
-    color: var(--navy, #0F1F3D);
-    font-family: 'Outfit', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    border: none;
-    border-radius: 9px;
-    cursor: pointer;
-  }
-
-  .btn-secondary:hover { background: #E5E9F0; }
-
-  .branding-preview {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 20px;
-    padding: 16px;
-    background: #FBFCFE;
-    border: 1px dashed #D9DEE7;
-    border-radius: 12px;
-  }
-
-  .branding-preview img {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    object-fit: cover;
-    background: #EEF1F6;
-  }
-
-  .branding-preview .branding-meta {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #5A6478;
-  }
-
-  .branding-preview .branding-meta strong {
-    display: block;
-    font-family: 'Outfit', sans-serif;
-    font-size: 15px;
-    color: var(--navy, #0F1F3D);
-    margin-bottom: 2px;
-  }
-
-  .color-swatch-row {
-    display: flex;
-    gap: 10px;
-    margin-top: 8px;
-  }
-
-  .color-swatch {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: 2px solid transparent;
-    cursor: pointer;
-  }
-
-  .color-swatch.selected {
-    border-color: var(--navy, #0F1F3D);
-  }
-
-  .roster-panel {
-    background: var(--white, #FFFFFF);
-    border: 1px solid #E5E9F0;
-    border-radius: 14px;
-    padding: 24px;
-  }
-
-  .roster-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #EEF1F6;
-  }
-
-  .roster-tab {
-    padding: 10px 16px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #8A93A6;
-    text-decoration: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-
-  .roster-tab.active {
-    color: var(--blue, #2563EB);
-    border-bottom-color: var(--blue, #2563EB);
-  }
-
-  table.roster-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-  }
-
-  table.roster-table th {
-    text-align: left;
-    padding: 10px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #8A93A6;
-    border-bottom: 1px solid #EEF1F6;
-  }
-
-  table.roster-table td {
-    padding: 12px;
-    border-bottom: 1px solid #F5F7FA;
-    color: var(--navy, #0F1F3D);
-  }
-
-  table.roster-table tr:last-child td {
-    border-bottom: none;
-  }
-
-  .role-badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  .role-badge.teacher {
-    background: #EEF2FF;
-    color: var(--purple, #7C3AED);
-  }
-
-  .role-badge.student {
-    background: #ECFDF5;
-    color: var(--green, #10B981);
-  }
-
-  .remove-link {
-    color: #B91C1C;
-    font-size: 13px;
-    text-decoration: none;
-    font-family: 'Inter', sans-serif;
-  }
-
-  .empty-roster {
-    padding: 32px 0;
-    text-align: center;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #8A93A6;
-  }
-
-  .flash-msg {
-    padding: 12px 16px;
-    border-radius: 10px;
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    margin-bottom: 20px;
-  }
-
-  .flash-msg.success {
-    background: #ECFDF5;
-    border: 1px solid #A7F3D0;
-    color: #047857;
-  }
-
-  .flash-msg.error {
-    background: #FEF2F2;
-    border: 1px solid #FCA5A5;
-    color: #B91C1C;
-  }
-
-  @media (max-width: 900px) {
-    .stat-row, .panel-grid { grid-template-columns: 1fr; }
-  }
-</style>
-
-<div class="principal-header">
+<div class="page-header flex-between">
   <div>
-    <h1>{{ school.name }}</h1>
-    <p>Principal dashboard — manage your school's staff, students, and branding.</p>
+    <h2>{{ school.name }}</h2>
+    <p>Manage your school's teachers, students, and branding</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="flex gap-2" style="margin-bottom:20px;flex-wrap:wrap">
+  <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
+    <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ teacher_count }}</div>
+    <div style="font-size:13px;color:var(--gray-500)">Teachers</div>
+  </div>
+  <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
+    <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ student_count }}</div>
+    <div style="font-size:13px;color:var(--gray-500)">Students</div>
+  </div>
+  <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
+    <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ course_count }}</div>
+    <div style="font-size:13px;color:var(--gray-500)">Courses</div>
   </div>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, msg in messages %}
-      <div class="flash-msg {{ 'success' if category == 'success' else 'error' }}">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+<div class="flex gap-2" style="align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
 
-<div class="stat-row">
-  <div class="stat-card">
-    <div class="stat-value">{{ teacher_count }}</div>
-    <div class="stat-label">Teachers</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ student_count }}</div>
-    <div class="stat-label">Students</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ course_count }}</div>
-    <div class="stat-label">Courses</div>
-  </div>
-</div>
+  <!-- Add teacher / student -->
+  <div class="card" style="flex:1;min-width:320px">
+    <h3 style="margin-bottom:4px">Add a Teacher or Student</h3>
+    <p class="subtitle" style="color:var(--gray-600);font-size:14px;margin-bottom:20px">They'll receive login credentials for {{ school.name }}'s platform</p>
 
-<div class="panel-grid">
-  <div class="panel">
-    <h2>Add a teacher or student</h2>
-    <p class="panel-sub">They'll receive login credentials for {{ school.name }}'s platform.</p>
     <form method="POST" action="{{ url_for('principal_add_member', slug=school.slug) }}">
-      <div class="field">
-        <label for="member_name">Full name</label>
-        <input type="text" id="member_name" name="name" placeholder="Full name" required>
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="name" class="form-control" placeholder="Enter full name" required>
       </div>
-      <div class="field">
-        <label for="member_email">Email</label>
-        <input type="email" id="member_email" name="email" placeholder="name@school.edu" required>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" name="email" class="form-control" placeholder="name@school.edu" required>
       </div>
-      <div class="field">
-        <label for="member_role">Role</label>
-        <select id="member_role" name="role" required>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select name="role" class="form-control" required>
           <option value="teacher">Teacher</option>
           <option value="student">Student</option>
         </select>
       </div>
-      <button type="submit" class="btn-primary">Add to school</button>
+      <button type="submit" class="btn btn-primary btn-block" style="font-weight:600">Add to School</button>
     </form>
   </div>
 
-  <div class="panel">
-    <h2>School branding</h2>
-    <p class="panel-sub">This logo and color appear across your school's platform.</p>
+  <!-- Branding -->
+  <div class="card" style="flex:1;min-width:320px">
+    <h3 style="margin-bottom:4px">School Branding</h3>
+    <p class="subtitle" style="color:var(--gray-600);font-size:14px;margin-bottom:20px">Your logo and accent color appear across {{ school.name }}'s platform</p>
 
-    <div class="branding-preview">
-      {% if school.logo %}
-        <img src="{{ school.logo }}" alt="{{ school.name }} logo">
-      {% else %}
-        <img src="{{ url_for('static', filename='img/logo-placeholder.png') }}" alt="No logo set">
-      {% endif %}
-      <div class="branding-meta">
-        <strong>{{ school.name }}</strong>
-        learnTogether.app/school/{{ school.slug }}
+    <div class="flex gap-2" style="align-items:center;margin-bottom:20px;padding:16px;background:var(--gray-50, #F7F9FC);border-radius:10px">
+      <div class="user-avatar" style="width:56px;height:56px;font-size:20px;overflow:hidden;border-radius:12px">
+        {% if school.logo %}
+          <img src="{{ school.logo }}" alt="{{ school.name }} logo" style="width:100%;height:100%;object-fit:cover;display:block">
+        {% else %}
+          {{ school.name[0].upper() }}
+        {% endif %}
+      </div>
+      <div>
+        <strong style="display:block;color:var(--navy);font-size:15px">{{ school.name }}</strong>
+        <span style="font-size:13px;color:var(--gray-500)">learntogether.app/school/{{ school.slug }}</span>
       </div>
     </div>
 
     <form method="POST" action="{{ url_for('principal_update_branding', slug=school.slug) }}" enctype="multipart/form-data">
-      <div class="field">
-        <label for="logo_file">Upload new logo</label>
-        <input type="file" id="logo_file" name="logo_file" accept="image/png,image/jpeg,image/svg+xml">
+      <div class="form-group">
+        <label class="form-label">Upload New Logo</label>
+        <input type="file" name="logo_file" class="form-control" accept="image/png,image/jpeg,image/svg+xml">
+        <div class="form-hint">PNG, JPG, or SVG. Square images work best.</div>
       </div>
-      <div class="field">
-        <label>Accent color</label>
-        <div class="color-swatch-row">
-          <span class="color-swatch {{ 'selected' if school.primary_color == '#2563EB' }}" style="background:#2563EB" data-color="#2563EB"></span>
-          <span class="color-swatch {{ 'selected' if school.primary_color == '#10B981' }}" style="background:#10B981" data-color="#10B981"></span>
-          <span class="color-swatch {{ 'selected' if school.primary_color == '#7C3AED' }}" style="background:#7C3AED" data-color="#7C3AED"></span>
-          <span class="color-swatch {{ 'selected' if school.primary_color == '#0F1F3D' }}" style="background:#0F1F3D" data-color="#0F1F3D"></span>
+
+      <div class="form-group">
+        <label class="form-label">Accent Color</label>
+        <div class="flex gap-2" style="margin-top:6px">
+          {% for color in ['#2563EB', '#10B981', '#7C3AED', '#0F1F3D'] %}
+          <label style="cursor:pointer">
+            <input type="radio" name="primary_color" value="{{ color }}"
+                   {% if school.primary_color == color %}checked{% endif %}
+                   style="display:none" onchange="this.closest('form').querySelectorAll('.color-dot').forEach(d=>d.style.outline='none');this.nextElementSibling.style.outline='2px solid var(--navy)'">
+            <span class="color-dot" style="display:block;width:30px;height:30px;border-radius:8px;background:{{ color }};{% if school.primary_color == color %}outline:2px solid var(--navy);{% endif %}"></span>
+          </label>
+          {% endfor %}
         </div>
-        <input type="hidden" id="primary_color" name="primary_color" value="{{ school.primary_color or '#2563EB' }}">
       </div>
-      <button type="submit" class="btn-secondary">Save branding</button>
+
+      <button type="submit" class="btn btn-outline btn-block" style="font-weight:600">Save Branding</button>
     </form>
   </div>
 </div>
 
-<div class="roster-panel">
-  <div class="roster-tabs">
+<!-- Roster -->
+<div class="card">
+  <div class="flex gap-2" style="margin-bottom:16px">
     <a href="{{ url_for('principal_dashboard', slug=school.slug, tab='teachers') }}"
-       class="roster-tab {{ 'active' if active_tab == 'teachers' }}">Teachers</a>
+       class="btn btn-sm {{ 'btn-primary' if active_tab == 'teachers' else 'btn-outline' }}">Teachers ({{ teacher_count }})</a>
     <a href="{{ url_for('principal_dashboard', slug=school.slug, tab='students') }}"
-       class="roster-tab {{ 'active' if active_tab == 'students' }}">Students</a>
+       class="btn btn-sm {{ 'btn-primary' if active_tab == 'students' else 'btn-outline' }}">Students ({{ student_count }})</a>
   </div>
 
-  {% if members %}
-    <table class="roster-table">
+  <div class="table-wrap">
+    <table class="data-table">
       <thead>
         <tr>
+          <th>#</th>
           <th>Name</th>
           <th>Email</th>
           <th>Role</th>
           <th>Joined</th>
-          <th></th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for member in members %}
         <tr>
-          <td>{{ member.name }}</td>
-          <td>{{ member.email }}</td>
-          <td><span class="role-badge {{ member.role }}">{{ member.role | capitalize }}</span></td>
-          <td>{{ member.created_at.strftime('%b %d, %Y') if member.created_at else '—' }}</td>
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <div class="user-avatar" style="width:30px;height:30px;font-size:12px;overflow:hidden">
+                {% if member.avatar %}
+                  <img src="{{ url_for('static', filename=member.avatar) }}" alt="{{ member.name }} avatar" style="width:100%;height:100%;object-fit:cover;display:block">
+                {% else %}
+                  {{ member.name[0].upper() }}
+                {% endif %}
+              </div>
+              <strong>{{ member.name }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-500)">{{ member.email }}</td>
+          <td>
+            <span class="badge badge-{{ 'purple' if member.role == 'teacher' else 'blue' }}">{{ member.role|capitalize }}</span>
+          </td>
+          <td style="color:var(--gray-400)">{{ member.created_at.strftime('%b %d, %Y') if member.created_at else '—' }}</td>
           <td>
             <form method="POST" action="{{ url_for('principal_remove_member', slug=school.slug, user_id=member.id) }}"
-                  onsubmit="return confirm('Remove {{ member.name }} from {{ school.name }}?');">
-              <button type="submit" class="remove-link" style="background:none;border:none;cursor:pointer;">Remove</button>
+                  onsubmit="return confirm('Remove {{ member.name }} from {{ school.name }}? This cannot be undone.')">
+              <button class="btn btn-danger btn-sm">Remove</button>
             </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--gray-500);padding:32px 0">
+            No {{ active_tab }} yet. Add one using the form above.
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  {% else %}
-    <div class="empty-roster">No {{ active_tab }} yet. Add one using the form above.</div>
-  {% endif %}
+  </div>
 </div>
-
-<script>
-  document.querySelectorAll('.color-swatch').forEach(function (swatch) {
-    swatch.addEventListener('click', function () {
-      document.querySelectorAll('.color-swatch').forEach(function (s) { s.classList.remove('selected'); });
-      swatch.classList.add('selected');
-      document.getElementById('primary_color').value = swatch.getAttribute('data-color');
-    });
-  });
-</script>
 {% endblock %}
