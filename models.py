@@ -3,14 +3,28 @@ from datetime import datetime, date
 
 db = SQLAlchemy()
 
+class School(db.Model):
+    __tablename__ = 'schools'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(100), unique=True, nullable=False)  # used in /school/<slug>/... URLs
+    logo = db.Column(db.String(300), nullable=True)
+    primary_color = db.Column(db.String(20), nullable=True, default='#2563EB')
+    principal_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    principal = db.relationship('User', foreign_keys=[principal_id])
+    members = db.relationship('User', backref='school', lazy=True, foreign_keys='User.school_id')
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='student')  # student/teacher/parent/admin
+    role = db.Column(db.String(20), nullable=False, default='student')  # student/teacher/parent/admin/principal
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending/approved/denied
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
     date_of_birth = db.Column(db.Date, nullable=True)
     previous_school = db.Column(db.String(200), nullable=True)
     courses_interest = db.Column(db.Text, nullable=True)
@@ -23,6 +37,9 @@ class User(db.Model):
     token_expiry = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # NOTE: `school` (singular, the User's own school) is provided by the
+    # backref on School.members above — do not redeclare it here, or
+    # SQLAlchemy will raise a conflicting-relationship error.
     courses_taught = db.relationship('Course', backref='teacher', lazy=True, foreign_keys='Course.teacher_id')
     enrollments = db.relationship('Enrollment', backref='student', lazy=True, foreign_keys='Enrollment.student_id')
     sent_messages = db.relationship('Message', backref='sender', lazy=True, foreign_keys='Message.sender_id')
@@ -81,7 +98,7 @@ class SiteMedia(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    
+
     admin = db.relationship('User', foreign_keys=[uploaded_by])
 
 class Course(db.Model):
@@ -90,11 +107,13 @@ class Course(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
     category = db.Column(db.String(100), nullable=True)
     level = db.Column(db.String(50), default='beginner')
     thumbnail = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    school = db.relationship('School', foreign_keys=[school_id])
     enrollments = db.relationship('Enrollment', backref='course', lazy=True)
     contents = db.relationship('CourseContent', backref='course', lazy=True)
     groups = db.relationship('Group', backref='course', lazy=True)
@@ -123,11 +142,13 @@ class Group(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     group_type = db.Column(db.String(20), default='student')  # course/teacher/student
     avatar = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    school = db.relationship('School', foreign_keys=[school_id])
     creator = db.relationship('User', foreign_keys=[created_by])
     members = db.relationship('GroupMember', backref='group', lazy=True)
     messages = db.relationship('Message', backref='group', lazy=True)
@@ -207,6 +228,7 @@ class AttendanceSession(db.Model):
     __tablename__ = 'attendance_sessions'
     id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
     name = db.Column(db.String(200), nullable=False)
     date = db.Column(db.Date, default=date.today)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -232,6 +254,7 @@ class ScheduledLesson(db.Model):
     __tablename__ = 'scheduled_lessons'
     id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
