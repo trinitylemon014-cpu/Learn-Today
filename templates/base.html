@@ -1,4 +1,4 @@
-{% set is_public_page = request.endpoint in ['index', 'login', 'register'] %}
+{% set is_public_page = request.endpoint in ['index', 'login', 'register', 'register_school'] %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Learn Together{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='videos/logo.png') }}">
+  <link rel="icon" href="{{ current_user.school.logo if current_user and current_user.school and current_user.school.logo else url_for('static', filename='videos/logo.png') }}">
+  {% if current_user and current_user.school and current_user.school.primary_color %}
+  <style>:root { --blue: {{ current_user.school.primary_color }}; }</style>
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -19,9 +22,17 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <div class="brand-badge">
-        <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-sidebar">
+        {% if current_user.school and current_user.school.logo %}
+          <img src="{{ current_user.school.logo }}" alt="{{ current_user.school.name }} logo" class="brand-logo brand-logo-sidebar">
+        {% else %}
+          <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-sidebar">
+        {% endif %}
       </div>
-      <span class="sidebar-logo-text">Learn<span>Together</span></span>
+      {% if current_user.school %}
+        <span class="sidebar-logo-text">{{ current_user.school.name }}</span>
+      {% else %}
+        <span class="sidebar-logo-text">Learn<span>Together</span></span>
+      {% endif %}
     </div>
 
     <div class="sidebar-user">
@@ -73,6 +84,19 @@
 
       {% if current_user.role == 'parent' %}
       <div class="nav-section-label">My Children</div>
+      {% endif %}
+
+      {% if current_user.role == 'principal' %}
+      <div class="nav-section-label">My School</div>
+      <a href="{{ url_for('principal_dashboard', slug=current_user.school.slug, tab='teachers') }}"
+         class="nav-item {% if request.endpoint == 'principal_dashboard' %}active{% endif %}" title="Manage School">
+        <span class="nav-icon svg-icon icon-users" aria-hidden="true"></span>
+        <span class="nav-label">Teachers &amp; Students</span>
+      </a>
+      <a href="{{ url_for('admin_courses') }}" class="nav-item" title="School Courses">
+        <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
+        <span class="nav-label">School Courses</span>
+      </a>
       {% endif %}
 
       {% if current_user.role == 'admin' %}
