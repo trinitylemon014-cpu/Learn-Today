@@ -1,224 +1,88 @@
-{% extends "index.html" %}
+{% extends 'base.html' %}
 {% block title %}Register Your School — Learn Together{% endblock %}
 
-{% block content %}
-<style>
-  .school-auth-wrap {
-    min-height: calc(100vh - 80px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 48px 24px;
-    background: linear-gradient(180deg, #F7F9FC 0%, #FFFFFF 100%);
-  }
-
-  .school-auth-card {
-    width: 100%;
-    max-width: 560px;
-    background: var(--white, #FFFFFF);
-    border: 1px solid #E5E9F0;
-    border-radius: 16px;
-    padding: 40px;
-    box-shadow: 0 1px 2px rgba(15, 31, 61, 0.04);
-  }
-
-  .school-auth-card h1 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 28px;
-    font-weight: 600;
-    color: var(--navy, #0F1F3D);
-    margin: 0 0 8px;
-  }
-
-  .school-auth-card p.lede {
-    font-family: 'Inter', sans-serif;
-    font-size: 15px;
-    color: #5A6478;
-    margin: 0 0 32px;
-    line-height: 1.5;
-  }
-
-  .school-form-section {
-    margin-bottom: 28px;
-  }
-
-  .school-form-section:last-of-type {
-    margin-bottom: 0;
-  }
-
-  .school-form-section h2 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--blue, #2563EB);
-    text-transform: none;
-    letter-spacing: 0;
-    margin: 0 0 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #EEF1F6;
-  }
-
-  .field {
-    margin-bottom: 16px;
-  }
-
-  .field label {
-    display: block;
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--navy, #0F1F3D);
-    margin-bottom: 6px;
-  }
-
-  .field input[type="text"],
-  .field input[type="email"],
-  .field input[type="password"] {
-    width: 100%;
-    padding: 11px 14px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    border: 1px solid #D9DEE7;
-    border-radius: 10px;
-    background: #FBFCFE;
-    color: var(--navy, #0F1F3D);
-    transition: border-color 0.15s ease;
-  }
-
-  .field input:focus {
-    outline: none;
-    border-color: var(--blue, #2563EB);
-    background: #FFFFFF;
-  }
-
-  .field-hint {
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    color: #8A93A6;
-    margin-top: 5px;
-  }
-
-  .field-row {
-    display: flex;
-    gap: 12px;
-  }
-
-  .field-row .field {
-    flex: 1;
-  }
-
-  .slug-preview {
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    color: var(--blue, #2563EB);
-    margin-top: 5px;
-  }
-
-  .submit-btn {
-    width: 100%;
-    padding: 13px;
-    margin-top: 8px;
-    background: var(--blue, #2563EB);
-    color: #FFFFFF;
-    font-family: 'Outfit', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-
-  .submit-btn:hover {
-    background: #1D4ED8;
-  }
-
-  .school-auth-footer {
-    text-align: center;
-    margin-top: 24px;
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #5A6478;
-  }
-
-  .school-auth-footer a {
-    color: var(--blue, #2563EB);
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .flash-error {
-    background: #FEF2F2;
-    border: 1px solid #FCA5A5;
-    color: #B91C1C;
-    padding: 12px 16px;
-    border-radius: 10px;
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    margin-bottom: 20px;
-  }
-</style>
-
-<div class="school-auth-wrap">
-  <div class="school-auth-card">
-    <h1>Bring your school online</h1>
-    <p class="lede">
-      Register your school and you'll be set up as its principal — the only
-      account able to add teachers and students, and to customize how your
-      school's platform looks.
-    </p>
-
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for msg in messages %}
-          <div class="flash-error">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <form method="POST" action="{{ url_for('register_school') }}" autocomplete="off">
-      <div class="school-form-section">
-        <h2>School details</h2>
-        <div class="field">
-          <label for="school_name">School name</label>
-          <input type="text" id="school_name" name="school_name" placeholder="e.g. Greenwood High School" required>
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-form-wrapper">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <img src="{{ url_for('static', filename='videos/logo.png') }}" alt="Learn Together logo" class="brand-logo brand-logo-auth">
+          <span>Learn Together</span>
         </div>
-        <div class="field">
-          <label for="school_slug">Web address</label>
-          <input type="text" id="school_slug" name="school_slug" placeholder="greenwood-high" required
-                 pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only">
-          <div class="field-hint">This becomes your school's unique URL. Lowercase letters, numbers, and hyphens only.</div>
+        <div style="margin-bottom:32px">
+          <h2 style="font-size:28px;margin-bottom:8px;color:var(--navy)">Bring Your School Online</h2>
+          <p class="subtitle" style="color:var(--gray-600);font-size:15px">Register your school and become its principal — the only account that can add teachers and students</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST">
+          <div class="form-group">
+            <label class="form-label">School Name</label>
+            <input type="text" name="school_name" class="form-control" placeholder="e.g. Greenwood High School" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">School Web Address</label>
+            <input type="text" name="school_slug" id="schoolSlug" class="form-control" placeholder="greenwood-high"
+                   pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only" required>
+            <div class="form-hint">Your school's unique link: learntogether.app/school/<span id="slugPreview">your-school</span></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Full Name</label>
+            <input type="text" name="principal_name" class="form-control" placeholder="Enter your full name" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Email Address</label>
+            <input type="email" name="principal_email" class="form-control" placeholder="you@school.edu" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" placeholder="At least 8 characters" minlength="8" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Confirm Password</label>
+            <input type="password" name="confirm_password" class="form-control" placeholder="Re-enter your password" minlength="8" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:12px;font-weight:600">
+            Create My School's Platform
+          </button>
+        </form>
+
+        <div class="auth-footer" style="margin-top:24px;text-align:center;font-size:14px;color:var(--gray-600)">
+          Already have an account? <a href="{{ url_for('login') }}" style="color:var(--blue);font-weight:600;text-decoration:none">Log in</a>
         </div>
       </div>
+    </div>
 
-      <div class="school-form-section">
-        <h2>Your principal account</h2>
-        <div class="field">
-          <label for="principal_name">Full name</label>
-          <input type="text" id="principal_name" name="principal_name" placeholder="Your full name" required>
-        </div>
-        <div class="field">
-          <label for="principal_email">Email</label>
-          <input type="email" id="principal_email" name="principal_email" placeholder="you@school.edu" required>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" placeholder="At least 8 characters" minlength="8" required>
-          </div>
-          <div class="field">
-            <label for="confirm_password">Confirm password</label>
-            <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter password" minlength="8" required>
-          </div>
+    <div class="auth-image-wrapper">
+      <img src="{{ url_for('static', filename='videos/lms.avif') }}" alt="Learn Together for Schools" class="auth-image">
+      <div class="auth-image-overlay">
+        <div class="auth-image-text">
+          <h3>Your school, your platform</h3>
+          <p>Add your logo, invite your teachers, and give every student a home for learning — all under your school's own name.</p>
         </div>
       </div>
-
-      <button type="submit" class="submit-btn">Create my school's platform</button>
-    </form>
-
-    <div class="school-auth-footer">
-      Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
     </div>
   </div>
 </div>
+
+<script>
+  const slugInput = document.getElementById('schoolSlug');
+  const slugPreview = document.getElementById('slugPreview');
+  slugInput.addEventListener('input', () => {
+    const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
+    slugPreview.textContent = clean || 'your-school';
+  });
+</script>
 {% endblock %}
