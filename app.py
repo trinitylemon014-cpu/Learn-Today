@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, get_flashed_messages
 from flask_socketio import SocketIO, join_room, leave_room
-from models import db, User, Course, Enrollment, Group, GroupMember, Message, MessageVisibility, MessageDelivery, Progress, ActivityLog, Attendance, AttendanceSession, CourseContent, Notification, ApplicationPageConfig, ScheduledLesson, CalendarEvent, SiteMedia
+from models import db, User, Course, Enrollment, Group, GroupMember, Message, MessageVisibility, MessageDelivery, Progress, ActivityLog, Attendance, AttendanceSession, CourseContent, Notification, ApplicationPageConfig, ScheduledLesson, CalendarEvent, SiteMedia, School
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover
@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover
     create_client = None
 
 import os
+import re
 import threading
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text, create_engine
@@ -29,6 +30,7 @@ import uuid
 import hashlib
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'}
+ALLOWED_LOGO_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | {'svg'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'webm', 'ogg'}
 ALLOWED_PRESENTATION_EXTENSIONS = {'pdf', 'ppt', 'pptx'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'}
@@ -378,7 +380,6 @@ def parse_date_input(s):
 def password_meets_policy(pw: str) -> bool:
     if not pw or len(pw) < 8:
         return False
-    import re
     if not re.search(r'[A-Z]', pw):
         return False
     if not re.search(r'[^A-Za-z0-9]', pw):
@@ -415,8 +416,27 @@ def media_url(path):
     return build_static_url(path)
 
 
+def slugify_school_name(name):
+    """Turn a school name into a URL-safe slug, e.g. 'Greenwood High!' -> 'greenwood-high'."""
+    slug = re.sub(r'[^a-z0-9]+', '-', (name or '').lower()).strip('-')
+    return slug or 'school'
+
+
+def generate_unique_school_slug(requested_slug, school_name):
+    """Ensures the slug is URL-safe and not already taken, appending -2, -3, ...
+    if needed."""
+    base = slugify_school_name(requested_slug or school_name)
+    slug = base
+    counter = 2
+    while School.query.filter_by(slug=slug).first():
+        slug = f"{base}-{counter}"
+        counter += 1
+    return slug
+
+
 TABLE_NAME_BY_MODEL = {
     User: 'users',
+    School: 'schools',
     Notification: 'notifications',
     ApplicationPageConfig: 'application_page_config',
     SiteMedia: 'site_media',
@@ -559,6 +579,9 @@ def ensure_database_schema():
             if 'avatar' not in columns:
                 db.session.execute(text("ALTER TABLE groups ADD COLUMN avatar VARCHAR(200)"))
                 db.session.commit()
+            if 'school_id' not in columns:
+                db.session.execute(text("ALTER TABLE groups ADD COLUMN school_id INTEGER"))
+                db.session.commit()
         if 'messages' in inspector.get_table_names():
             columns = {column['name'] for column in inspector.get_columns('messages')}
             for column_name, column_type in [
@@ -600,6 +623,19 @@ def ensure_database_schema():
             if 'poster_url' not in columns:
                 db.session.execute(text("ALTER TABLE scheduled_lessons ADD COLUMN poster_url VARCHAR(300)"))
                 db.session.commit()
+            if 'school_id' not in columns:
+                db.session.execute(text("ALTER TABLE scheduled_lessons ADD COLUMN school_id INTEGER"))
+                db.session.commit()
+        if 'courses' in existing_tables:
+            columns = {column['name'] for column in inspector.get_columns('courses')}
+            if 'school_id' not in columns:
+                db.session.execute(text("ALTER TABLE courses ADD COLUMN school_id INTEGER"))
+                db.session.commit()
+        if 'attendance_sessions' in existing_tables:
+            columns = {column['name'] for column in inspector.get_columns('attendance_sessions')}
+            if 'school_id' not in columns:
+                db.session.execute(text("ALTER TABLE attendance_sessions ADD COLUMN school_id INTEGER"))
+                db.session.commit()
         if 'users' in existing_tables:
             columns = {column['name'] for column in inspector.get_columns('users')}
             for column_name, column_type in [
@@ -609,6 +645,7 @@ def ensure_database_schema():
                 ('courses_interest', 'TEXT'),
                 ('cv_path', 'VARCHAR(300)'),
                 ('parent_name', 'VARCHAR(100)'),
+                ('school_id', 'INTEGER'),
             ]:
                 if column_name not in columns:
                     db.session.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
@@ -907,6 +944,68 @@ def register():
     signup_media = SiteMedia.query.filter_by(media_type='signup_image', is_active=True).first()
     return render_template('register.html', signup_media=signup_media)
 
+
+# ─── SCHOOL REGISTRATION (multi-tenant onboarding) ─────────────────────────
+@app.route('/register-school', methods=['GET', 'POST'])
+def register_school():
+    if request.method == 'POST':
+        school_name = request.form.get('school_name', '').strip()
+        requested_slug = request.form.get('school_slug', '').strip().lower()
+        principal_name = request.form.get('principal_name', '').strip()
+        principal_email = request.form.get('principal_email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not school_name or not requested_slug or not principal_name or not principal_email:
+            flash('Please fill in all required fields.', 'error')
+            return render_template('register_school.html')
+
+        if not re.match(r'^[a-z0-9\-]+$', requested_slug):
+            flash('School web address can only contain lowercase letters, numbers, and hyphens.', 'error')
+            return render_template('register_school.html')
+
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('register_school.html')
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
+            return render_template('register_school.html')
+
+        if School.query.filter_by(slug=requested_slug).first():
+            flash('That web address is already taken. Please choose another.', 'error')
+            return render_template('register_school.html')
+
+        if User.query.filter_by(email=principal_email).first():
+            flash('That email is already registered.', 'error')
+            return render_template('register_school.html')
+
+        school = School(name=school_name, slug=requested_slug, primary_color='#2563EB')
+        db.session.add(school)
+        db.session.flush()
+
+        principal = User(
+            name=principal_name,
+            email=principal_email,
+            password=hash_password(password),
+            role='principal',
+            status='approved',
+            school_id=school.id,
+        )
+        db.session.add(principal)
+        db.session.flush()
+
+        school.principal_id = principal.id
+        db.session.commit()
+
+        session['user_id'] = principal.id
+        session['role'] = principal.role
+        flash(f"Welcome, {principal.name}! {school.name}'s platform is ready.", 'success')
+        return redirect(url_for('principal_dashboard', slug=school.slug))
+
+    return render_template('register_school.html')
+
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -976,6 +1075,12 @@ def dashboard():
             student_data.append({'user': s, 'courses': len(enrollments), 'avg_progress': round(avg_progress, 1), 'att_rate': round(att_rate, 1)})
         return render_template('dashboard_parent.html', student_data=student_data)
 
+    elif user.role == 'principal':
+        if not user.school:
+            flash('No school is linked to your account. Please contact support.', 'error')
+            return redirect(url_for('index'))
+        return redirect(url_for('principal_dashboard', slug=user.school.slug))
+
     elif user.role == 'admin':
         users = User.query.all()
         courses = Course.query.all()
@@ -987,11 +1092,143 @@ def dashboard():
 
     return redirect(url_for('index'))
 
+
+# ─── PRINCIPAL / SCHOOL MANAGEMENT ─────────────────────────────────────────
+@app.route('/school/<slug>/manage')
+def principal_dashboard(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    active_tab = request.args.get('tab', 'teachers')
+    if active_tab not in ('teachers', 'students'):
+        active_tab = 'teachers'
+
+    teacher_count = User.query.filter_by(school_id=school.id, role='teacher').count()
+    student_count = User.query.filter_by(school_id=school.id, role='student').count()
+    course_count = Course.query.filter_by(school_id=school.id).count()
+    members = User.query.filter_by(
+        school_id=school.id,
+        role='teacher' if active_tab == 'teachers' else 'student'
+    ).order_by(User.created_at.desc()).all()
+
+    return render_template('principal_dashboard.html', school=school, active_tab=active_tab,
+                           teacher_count=teacher_count, student_count=student_count,
+                           course_count=course_count, members=members)
+
+
+@app.route('/school/<slug>/members/add', methods=['POST'])
+def principal_add_member(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    role = request.form.get('role', 'student')
+
+    if role not in ('teacher', 'student'):
+        flash('Invalid role selected.', 'error')
+        return redirect(url_for('principal_dashboard', slug=slug))
+
+    if not name or not email:
+        flash('Name and email are required.', 'error')
+        return redirect(url_for('principal_dashboard', slug=slug, tab=f'{role}s'))
+
+    if User.query.filter_by(email=email).first():
+        flash('That email is already registered.', 'error')
+        return redirect(url_for('principal_dashboard', slug=slug, tab=f'{role}s'))
+
+    member = User(
+        name=name,
+        email=email,
+        password=hash_password(''),
+        role=role,
+        status='approved',
+        school_id=school.id,
+    )
+    db.session.add(member)
+    db.session.commit()
+
+    setup_link = url_for('setup_password', email=email, _external=True)
+    flash(f'{name} was added as a {role}. Share this link so they can set their password: {setup_link}', 'success')
+    return redirect(url_for('principal_dashboard', slug=slug, tab=f'{role}s'))
+
+
+@app.route('/school/<slug>/members/<int:user_id>/remove', methods=['POST'])
+def principal_remove_member(slug, user_id):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    member = User.query.get_or_404(user_id)
+    if member.school_id != school.id or member.role not in ('teacher', 'student'):
+        flash('Access denied.', 'error')
+        return redirect(url_for('principal_dashboard', slug=slug))
+
+    tab = 'teachers' if member.role == 'teacher' else 'students'
+
+    if member.role == 'student':
+        Enrollment.query.filter_by(student_id=member.id).delete(synchronize_session=False)
+        Progress.query.filter_by(student_id=member.id).delete(synchronize_session=False)
+        Attendance.query.filter_by(student_id=member.id).delete(synchronize_session=False)
+        ActivityLog.query.filter_by(student_id=member.id).delete(synchronize_session=False)
+    else:
+        # Reassign this teacher's courses to the principal rather than leaving them orphaned.
+        Course.query.filter_by(teacher_id=member.id).update({'teacher_id': user.id}, synchronize_session=False)
+
+    GroupMember.query.filter_by(user_id=member.id).delete(synchronize_session=False)
+    Message.query.filter_by(sender_id=member.id).delete(synchronize_session=False)
+    User.query.filter_by(parent_id=member.id).update({'parent_id': None}, synchronize_session=False)
+
+    member_name = member.name
+    db.session.delete(member)
+    db.session.commit()
+
+    flash(f'{member_name} was removed from {school.name}.', 'success')
+    return redirect(url_for('principal_dashboard', slug=slug, tab=tab))
+
+
+@app.route('/school/<slug>/branding', methods=['POST'])
+def principal_update_branding(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    logo_file = request.files.get('logo_file')
+    if logo_file and logo_file.filename:
+        saved_logo = save_uploaded_file(logo_file, 'school_logos', ALLOWED_LOGO_EXTENSIONS)
+        if saved_logo:
+            delete_supabase_file(school.logo)
+            school.logo = saved_logo
+        else:
+            flash('Please upload a valid logo image (png, jpg, jpeg, gif, webp, avif, svg).', 'error')
+            return redirect(url_for('principal_dashboard', slug=slug))
+
+    primary_color = request.form.get('primary_color', '').strip()
+    if primary_color:
+        school.primary_color = primary_color
+
+    db.session.commit()
+    flash('Branding updated.', 'success')
+    return redirect(url_for('principal_dashboard', slug=slug))
+
 # ─── COURSES ────────────────────────────────────────────────────────────────
 @app.route('/courses')
 def courses():
     user = get_current_user()
-    all_courses = Course.query.all()
+    course_query = Course.query
+    if user and user.school_id:
+        course_query = course_query.filter_by(school_id=user.school_id)
+    all_courses = course_query.all()
     enrolled_ids = []
     if user and user.role == 'student':
         enrolled_ids = [e.course_id for e in Enrollment.query.filter_by(student_id=user.id).all()]
@@ -1016,13 +1253,14 @@ def create_course():
             thumbnail = saved_thumbnail
 
         course = Course(title=title, description=description, teacher_id=user.id,
-                        category=category, level=level, thumbnail=thumbnail)
+                        category=category, level=level, thumbnail=thumbnail,
+                        school_id=user.school_id)
         db.session.add(course)
         db.session.flush()
 
         # Auto-create course group
         group = Group(name=f"{title} - Class Group", course_id=course.id,
-                      created_by=user.id, group_type='course')
+                      created_by=user.id, group_type='course', school_id=user.school_id)
         db.session.add(group)
         gm = GroupMember(group_id=group.id, user_id=user.id, role='admin')
         db.session.add(gm)
@@ -1182,6 +1420,7 @@ def schedule_lesson(course_id):
 
         lesson = ScheduledLesson(
             course_id=course.id,
+            school_id=course.school_id,
             teacher_id=user.id,
             title=title,
             description=description or None,
@@ -1332,7 +1571,10 @@ def groups():
         return redirect(url_for('login'))
     my_group_ids = [gm.group_id for gm in GroupMember.query.filter_by(user_id=user.id).all()]
     my_groups = Group.query.filter(Group.id.in_(my_group_ids)).all()
-    public_groups = Group.query.filter(~Group.id.in_(my_group_ids)).limit(10).all()
+    public_query = Group.query.filter(~Group.id.in_(my_group_ids))
+    if user.school_id:
+        public_query = public_query.filter_by(school_id=user.school_id)
+    public_groups = public_query.limit(10).all()
     return render_template('groups.html', my_groups=my_groups, public_groups=public_groups)
 
 @app.route('/groups/create', methods=['GET', 'POST'])
@@ -1344,7 +1586,8 @@ def create_group():
         name = request.form.get('name', '').strip()
         description = request.form.get('description', '').strip()
         group_type = 'student' if user.role == 'student' else 'teacher'
-        group = Group(name=name, description=description, created_by=user.id, group_type=group_type)
+        group = Group(name=name, description=description, created_by=user.id,
+                     group_type=group_type, school_id=user.school_id)
         db.session.add(group)
         db.session.flush()
         db.session.add(GroupMember(group_id=group.id, user_id=user.id, role='admin'))
@@ -2041,7 +2284,8 @@ def create_session(course_id):
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     session_name = request.form.get('session_name', f'Session {date.today()}')
-    att_session = AttendanceSession(course_id=course_id, name=session_name, date=date.today(), created_by=user.id)
+    att_session = AttendanceSession(course_id=course_id, school_id=course.school_id,
+                                    name=session_name, date=date.today(), created_by=user.id)
     db.session.add(att_session)
     db.session.commit()
     # Mark all enrolled students absent by default
@@ -2232,10 +2476,13 @@ def delete_user(user_id):
 @app.route('/admin/courses')
 def admin_courses():
     user = get_current_user()
-    if not user or user.role != 'admin':
+    if not user or user.role not in ('admin', 'principal'):
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
-    courses = Course.query.all()
+    if user.role == 'principal':
+        courses = Course.query.filter_by(school_id=user.school_id).all()
+    else:
+        courses = Course.query.all()
     return render_template('admin_courses.html', courses=courses)
 
 # ─── ADMIN MEDIA MANAGEMENT ────────────────────────────────────────────────────
