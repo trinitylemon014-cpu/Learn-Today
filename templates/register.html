@@ -21,6 +21,10 @@
           {% endfor %}
         {% endwith %}
 
+        <div class="alert alert-info" style="margin-bottom:20px">
+          Signing up on behalf of a school? <a href="{{ url_for('register_school') }}" style="color:var(--blue);font-weight:600;text-decoration:none">Register your school instead</a> to get your own branded platform and add your own teachers and students.
+        </div>
+
         <form method="POST" enctype="multipart/form-data">
           <input type="hidden" name="role" id="roleInput" value="student">
 
