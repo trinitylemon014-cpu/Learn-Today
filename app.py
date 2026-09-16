@@ -1108,15 +1108,65 @@ def principal_dashboard(slug):
 
     teacher_count = User.query.filter_by(school_id=school.id, role='teacher').count()
     student_count = User.query.filter_by(school_id=school.id, role='student').count()
-    course_count = Course.query.filter_by(school_id=school.id).count()
+    school_courses = Course.query.filter_by(school_id=school.id).all()
+    course_count = len(school_courses)
     members = User.query.filter_by(
         school_id=school.id,
         role='teacher' if active_tab == 'teachers' else 'student'
     ).order_by(User.created_at.desc()).all()
 
+    # ── Course performance table: enrollment + average progress per course ──
+    course_rows = []
+    total_enrollments = 0
+    progress_sum = 0
+    progress_count = 0
+    for c in school_courses:
+        enrolled_count = Enrollment.query.filter_by(course_id=c.id).count()
+        total_enrollments += enrolled_count
+        progress_list = Progress.query.filter_by(course_id=c.id).all()
+        if progress_list:
+            avg_progress = round(sum(p.progress_percent for p in progress_list) / len(progress_list), 1)
+            progress_sum += sum(p.progress_percent for p in progress_list)
+            progress_count += len(progress_list)
+        else:
+            avg_progress = 0
+        course_rows.append({
+            'title': c.title,
+            'teacher_name': c.teacher.name if c.teacher else '—',
+            'level': c.level,
+            'enrolled_count': enrolled_count,
+            'avg_progress': avg_progress,
+        })
+    course_rows.sort(key=lambda r: r['enrolled_count'], reverse=True)
+    school_avg_progress = round(progress_sum / progress_count, 1) if progress_count else 0
+
+    # ── Student growth over the last 6 months ──
+    month_labels = []
+    month_counts = []
+    today = date.today()
+    for i in range(5, -1, -1):
+        year = today.year
+        month = today.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        month_start = date(year, month, 1)
+        month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        count = User.query.filter(
+            User.school_id == school.id,
+            User.role == 'student',
+            User.created_at >= datetime.combine(month_start, time.min),
+            User.created_at < datetime.combine(month_end, time.min),
+        ).count()
+        month_labels.append(month_start.strftime('%b'))
+        month_counts.append(count)
+
     return render_template('principal_dashboard.html', school=school, active_tab=active_tab,
                            teacher_count=teacher_count, student_count=student_count,
-                           course_count=course_count, members=members)
+                           course_count=course_count, members=members,
+                           course_rows=course_rows, total_enrollments=total_enrollments,
+                           school_avg_progress=school_avg_progress,
+                           month_labels=month_labels, month_counts=month_counts)
 
 
 @app.route('/school/<slug>/members/add', methods=['POST'])
