@@ -30,6 +30,60 @@
     <div class="stat-value">{{ students|length }}</div>
     <div class="stat-label">Students</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-card-icon blue"></div>
+    <div class="stat-value">{{ schools|length }}</div>
+    <div class="stat-label">Registered Schools</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:24px">
+  <div class="flex-between mb-4">
+    <h4>Schools Overview</h4>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>School</th>
+          <th>Principal</th>
+          <th>Students</th>
+          <th>Teachers</th>
+          <th>Parents</th>
+          <th>Total Users</th>
+          <th>Registered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in school_stats %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              {% if row.school.logo %}
+              <img src="{{ media_url(row.school.logo) }}" alt="{{ row.school.name }} logo" style="width:32px;height:32px;object-fit:cover;border-radius:8px;flex-shrink:0">
+              {% else %}
+              <div style="width:32px;height:32px;background:{{ row.school.primary_color or 'var(--blue)' }};border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0">
+                {{ row.school.name[:2].upper() }}
+              </div>
+              {% endif %}
+              <strong>{{ row.school.name }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-500)">{{ row.principal_name }}</td>
+          <td><span class="badge badge-orange">{{ row.students }}</span></td>
+          <td><span class="badge badge-green">{{ row.teachers }}</span></td>
+          <td><span class="badge badge-purple">{{ row.parents }}</span></td>
+          <td><span class="badge badge-blue">{{ row.total_users }}</span></td>
+          <td style="color:var(--gray-400);font-size:12px">{{ row.school.created_at.strftime('%b %d, %Y') }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;color:var(--gray-400)">No schools have registered yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <div class="grid-2">
@@ -72,7 +126,7 @@
           <tr>
             <td>
               <div style="display:flex;align-items:center;gap:10px">
-                            {% if c.thumbnail %}
+                {% if c.thumbnail %}
                   {% if c.thumbnail.startswith('http') %}
                   <img src="{{ media_url(c.thumbnail) }}" alt="{{ c.title }} thumbnail" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0">
                   {% else %}
