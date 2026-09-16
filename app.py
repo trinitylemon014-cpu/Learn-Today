@@ -1088,8 +1088,23 @@ def dashboard():
         groups = Group.query.all()
         teachers = [u for u in users if u.role == 'teacher']
         students = [u for u in users if u.role == 'student']
+
+        schools = School.query.order_by(School.created_at.desc()).all()
+        school_stats = []
+        for s in schools:
+            members = s.members
+            school_stats.append({
+                'school': s,
+                'students': sum(1 for m in members if m.role == 'student'),
+                'teachers': sum(1 for m in members if m.role == 'teacher'),
+                'parents': sum(1 for m in members if m.role == 'parent'),
+                'total_users': len(members),
+                'principal_name': s.principal.name if s.principal else '—',
+            })
+
         return render_template('dashboard_admin.html', users=users, courses=courses,
-                               groups=groups, teachers=teachers, students=students)
+                               groups=groups, teachers=teachers, students=students,
+                               schools=schools, school_stats=school_stats)
 
     return redirect(url_for('index'))
 
