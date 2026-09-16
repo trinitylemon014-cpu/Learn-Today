@@ -599,12 +599,13 @@ def ensure_database_schema():
         if 'notifications' in inspector.get_table_names():
             columns = {column['name'] for column in inspector.get_columns('notifications')}
             for column_name, column_type in [
-                ('sender_id', 'INTEGER'),
+                               ('sender_id', 'INTEGER'),
                 ('group_id', 'INTEGER'),
                 ('message_id', 'INTEGER'),
                 ('read_at', 'TIMESTAMP'),
                 ('target_url', 'VARCHAR(300)'),
                 ('metadata', 'JSON'),
+                ('reminder_for', 'TIMESTAMP'),
             ]:
                 if column_name not in columns:
                     try:
