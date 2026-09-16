@@ -5,11 +5,12 @@
 <div class="page-header flex-between">
   <div>
     <h2>{{ school.name }}</h2>
-    <p>Manage your school's teachers, students, and branding</p>
+    <p>Analytics and management for your school</p>
   </div>
   <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
 </div>
 
+<!-- KPI cards -->
 <div class="flex gap-2" style="margin-bottom:20px;flex-wrap:wrap">
   <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
     <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ teacher_count }}</div>
@@ -21,13 +22,88 @@
   </div>
   <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
     <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ course_count }}</div>
-    <div style="font-size:13px;color:var(--gray-500)">Courses</div>
+    <div style="font-size:13px;color:var(--gray-500)">Courses Offered</div>
+  </div>
+  <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
+    <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ total_enrollments }}</div>
+    <div style="font-size:13px;color:var(--gray-500)">Total Enrollments</div>
+  </div>
+  <div class="card" style="flex:1;min-width:140px;padding:16px 20px">
+    <div style="font-size:24px;font-weight:700;color:var(--navy)">{{ school_avg_progress }}%</div>
+    <div style="font-size:13px;color:var(--gray-500)">Avg. Course Progress</div>
   </div>
 </div>
 
+<!-- Charts -->
+<div class="flex gap-2" style="align-items:stretch;flex-wrap:wrap;margin-bottom:20px">
+  <div class="card" style="flex:2;min-width:340px">
+    <h3 style="margin-bottom:2px">Student Growth</h3>
+    <p class="subtitle" style="color:var(--gray-600);font-size:13px;margin-bottom:16px">New students enrolled, last 6 months</p>
+    <div style="position:relative;height:240px">
+      <canvas id="growthChart"></canvas>
+    </div>
+  </div>
+  <div class="card" style="flex:1;min-width:260px">
+    <h3 style="margin-bottom:2px">Teachers vs Students</h3>
+    <p class="subtitle" style="color:var(--gray-600);font-size:13px;margin-bottom:16px">Current school roster mix</p>
+    <div style="position:relative;height:240px">
+      <canvas id="roleChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Course performance table -->
+<div class="card" style="margin-bottom:20px">
+  <div class="page-header flex-between" style="margin-bottom:12px;padding:0">
+    <div>
+      <h3 style="margin-bottom:2px">Courses Offered</h3>
+      <p class="subtitle" style="color:var(--gray-600);font-size:13px">Enrollment and progress by course, sorted by popularity</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Course</th>
+          <th>Teacher</th>
+          <th>Level</th>
+          <th>Enrolled</th>
+          <th>Avg. Progress</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in course_rows %}
+        <tr>
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td><strong>{{ row.title }}</strong></td>
+          <td style="color:var(--gray-500)">{{ row.teacher_name }}</td>
+          <td><span class="badge badge-blue">{{ row.level|capitalize }}</span></td>
+          <td>{{ row.enrolled_count }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <div style="flex:1;max-width:100px;height:6px;background:var(--gray-100,#EEF1F6);border-radius:99px;overflow:hidden">
+                <div style="width:{{ row.avg_progress }}%;height:100%;background:{{ school.primary_color or '#2563EB' }};border-radius:99px"></div>
+              </div>
+              <span style="font-size:13px;color:var(--gray-500)">{{ row.avg_progress }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--gray-500);padding:32px 0">
+            No courses yet. Once your teachers create courses, they'll show up here.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add teacher/student + branding -->
 <div class="flex gap-2" style="align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
 
-  <!-- Add teacher / student -->
   <div class="card" style="flex:1;min-width:320px">
     <h3 style="margin-bottom:4px">Add a Teacher or Student</h3>
     <p class="subtitle" style="color:var(--gray-600);font-size:14px;margin-bottom:20px">They'll receive login credentials for {{ school.name }}'s platform</p>
@@ -52,7 +128,6 @@
     </form>
   </div>
 
-  <!-- Branding -->
   <div class="card" style="flex:1;min-width:320px">
     <h3 style="margin-bottom:4px">School Branding</h3>
     <p class="subtitle" style="color:var(--gray-600);font-size:14px;margin-bottom:20px">Your logo and accent color appear across {{ school.name }}'s platform</p>
@@ -157,4 +232,67 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>
+(function() {
+  const accentColor = {{ (school.primary_color or '#2563EB')|tojson }};
+
+  function hexToRgba(hex, alpha) {
+    const clean = hex.replace('#', '');
+    const bigint = parseInt(clean, 16);
+    const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const growthCtx = document.getElementById('growthChart');
+  if (growthCtx) {
+    new Chart(growthCtx, {
+      type: 'bar',
+      data: {
+        labels: {{ month_labels|tojson }},
+        datasets: [{
+          label: 'New students',
+          data: {{ month_counts|tojson }},
+          backgroundColor: hexToRgba(accentColor, 0.75),
+          borderRadius: 6,
+          maxBarThickness: 36,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EEF1F6' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  const roleCtx = document.getElementById('roleChart');
+  if (roleCtx) {
+    new Chart(roleCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Teachers', 'Students'],
+        datasets: [{
+          data: [{{ teacher_count }}, {{ student_count }}],
+          backgroundColor: ['#7C3AED', accentColor],
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 12 } } } }
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}
