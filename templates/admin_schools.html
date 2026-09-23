@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}School Applications — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header flex-between">
+  <div>
+    <h2>Schools</h2>
+    <p>Review school applications before they go live on the platform</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Dashboard</a>
+</div>
+
+<div class="card">
+  <div class="flex gap-2" style="margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-primary btn-sm" onclick="filterSchools('all')">All ({{ schools|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterSchools('pending')">Pending ({{ schools|selectattr('status','eq','pending')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterSchools('approved')">Approved ({{ schools|selectattr('status','eq','approved')|list|length }})</button>
+    <button class="btn btn-outline btn-sm" onclick="filterSchools('denied')">Denied ({{ schools|selectattr('status','eq','denied')|list|length }})</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="schoolsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>School</th>
+          <th>Principal</th>
+          <th>Web Address</th>
+          <th>Status</th>
+          <th>Applied</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for school in schools %}
+        <tr data-status="{{ school.status }}">
+          <td style="color:var(--gray-400)">{{ loop.index }}</td>
+          <td>
+            <div class="flex gap-2" style="align-items:center">
+              <div class="user-avatar" style="width:30px;height:30px;font-size:12px;overflow:hidden;border-radius:8px">
+                {% if school.logo %}
+                  <img src="{{ school.logo }}" alt="{{ school.name }} logo" style="width:100%;height:100%;object-fit:cover;display:block">
+                {% else %}
+                  {{ school.name[0].upper() }}
+                {% endif %}
+              </div>
+              <strong>{{ school.name }}</strong>
+            </div>
+          </td>
+          <td style="color:var(--gray-500)">
+            {% if school.principal %}
+              {{ school.principal.name }}<br>
+              <span style="font-size:12px;color:var(--gray-400)">{{ school.principal.email }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td style="color:var(--gray-500)">/school/{{ school.slug }}</td>
+          <td>
+            <span class="badge badge-{{ 'orange' if school.status == 'pending' else 'green' if school.status == 'approved' else 'red' }}">
+              {{ school.status|capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--gray-400)">{{ school.created_at.strftime('%b %d, %Y') if school.created_at else '—' }}</td>
+          <td>
+            {% if school.status != 'approved' %}
+            <form method="POST" action="{{ url_for('review_school', school_id=school.id) }}" class="flex gap-2" style="flex-wrap:wrap">
+              <button class="btn btn-success btn-sm" name="action" value="approve">Approve</button>
+              {% if school.status != 'denied' %}
+              <button class="btn btn-outline btn-sm" name="action" value="deny">Deny</button>
+              {% endif %}
+            </form>
+            {% else %}
+            <span style="color:var(--gray-500);font-size:12px">Live on platform</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;color:var(--gray-500);padding:32px 0">
+            No schools have registered yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterSchools(status) {
+  document.querySelectorAll('#schoolsTable tbody tr').forEach(row => {
+    row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+  });
+  document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('btn-primary'));
+  event.target.classList.add('btn-primary');
+  event.target.classList.remove('btn-outline');
+}
+</script>
+{% endblock %}
