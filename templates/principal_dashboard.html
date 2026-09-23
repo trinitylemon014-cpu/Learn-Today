@@ -108,7 +108,7 @@
     <h3 style="margin-bottom:4px">Add a Teacher or Student</h3>
     <p class="subtitle" style="color:var(--gray-600);font-size:14px;margin-bottom:20px">They'll receive login credentials for {{ school.name }}'s platform</p>
 
-    <form method="POST" action="{{ url_for('principal_add_member', slug=school.slug) }}">
+    <form method="POST" action="{{ url_for('principal_add_member', slug=school.slug) }}" id="addMemberForm">
       <div class="form-group">
         <label class="form-label">Full Name</label>
         <input type="text" name="name" class="form-control" placeholder="Enter full name" required>
@@ -119,11 +119,30 @@
       </div>
       <div class="form-group">
         <label class="form-label">Role</label>
-        <select name="role" class="form-control" required>
+        <select name="role" id="memberRoleSelect" class="form-control" required onchange="toggleTeacherFields(this.value)">
           <option value="teacher">Teacher</option>
           <option value="student">Student</option>
         </select>
       </div>
+
+      <div id="teacherOnlyFields">
+        <div class="alert alert-info" style="font-size:13px;margin-bottom:16px">
+          These details are used later to verify a teacher's identity if they ever need to reset their password — please enter them accurately.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date of Birth</label>
+          <input type="date" name="date_of_birth" id="teacherDob" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Place of Origin</label>
+          <input type="text" name="origin" id="teacherOrigin" class="form-control" placeholder="e.g. hometown, region, or country">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subjects Taught</label>
+          <input type="text" name="subjects_taught" id="teacherSubjects" class="form-control" placeholder="e.g. Mathematics, Physics">
+        </div>
+      </div>
+
       <button type="submit" class="btn btn-primary btn-block" style="font-weight:600">Add to School</button>
     </form>
   </div>
@@ -236,6 +255,20 @@
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>
+function toggleTeacherFields(role) {
+  const wrap = document.getElementById('teacherOnlyFields');
+  const isTeacher = role === 'teacher';
+  wrap.style.display = isTeacher ? 'block' : 'none';
+  ['teacherDob', 'teacherOrigin', 'teacherSubjects'].forEach(function (id) {
+    document.getElementById(id).required = isTeacher;
+  });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  const select = document.getElementById('memberRoleSelect');
+  if (select) toggleTeacherFields(select.value);
+});
+</script>
 <script>
 (function() {
   const accentColor = {{ (school.primary_color or '#2563EB')|tojson }};
