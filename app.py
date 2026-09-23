@@ -599,13 +599,12 @@ def ensure_database_schema():
         if 'notifications' in inspector.get_table_names():
             columns = {column['name'] for column in inspector.get_columns('notifications')}
             for column_name, column_type in [
-                               ('sender_id', 'INTEGER'),
+                ('sender_id', 'INTEGER'),
                 ('group_id', 'INTEGER'),
                 ('message_id', 'INTEGER'),
                 ('read_at', 'TIMESTAMP'),
                 ('target_url', 'VARCHAR(300)'),
                 ('metadata', 'JSON'),
-                ('reminder_for', 'TIMESTAMP'),
             ]:
                 if column_name not in columns:
                     try:
@@ -637,6 +636,15 @@ def ensure_database_schema():
             if 'school_id' not in columns:
                 db.session.execute(text("ALTER TABLE attendance_sessions ADD COLUMN school_id INTEGER"))
                 db.session.commit()
+        if 'schools' in existing_tables:
+            columns = {column['name'] for column in inspector.get_columns('schools')}
+            if 'status' not in columns:
+                db.session.execute(text("ALTER TABLE schools ADD COLUMN status VARCHAR(20) DEFAULT 'pending'"))
+                db.session.commit()
+                # Any school that already existed before this feature shipped was
+                # effectively already "live" — don't retroactively lock it out.
+                db.session.execute(text("UPDATE schools SET status='approved' WHERE status IS NULL"))
+                db.session.commit()
         if 'users' in existing_tables:
             columns = {column['name'] for column in inspector.get_columns('users')}
             for column_name, column_type in [
@@ -647,6 +655,8 @@ def ensure_database_schema():
                 ('cv_path', 'VARCHAR(300)'),
                 ('parent_name', 'VARCHAR(100)'),
                 ('school_id', 'INTEGER'),
+                ('origin', 'VARCHAR(200)'),
+                ('subjects_taught', 'TEXT'),
             ]:
                 if column_name not in columns:
                     db.session.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
@@ -756,7 +766,10 @@ def inject_user():
 @app.route('/')
 def index():
     courses = Course.query.limit(6).all()
-    return render_template('index.html', courses=courses)
+    # Only approved schools are shown publicly, and only their name/logo —
+    # never their courses or subjects, per the platform's privacy stance.
+    active_schools = School.query.filter_by(status='approved').order_by(School.name).all()
+    return render_template('index.html', courses=courses, active_schools=active_schools)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -981,7 +994,7 @@ def register_school():
             flash('That email is already registered.', 'error')
             return render_template('register_school.html')
 
-        school = School(name=school_name, slug=requested_slug, primary_color='#2563EB')
+        school = School(name=school_name, slug=requested_slug, primary_color='#2563EB', status='pending')
         db.session.add(school)
         db.session.flush()
 
@@ -1001,10 +1014,26 @@ def register_school():
 
         session['user_id'] = principal.id
         session['role'] = principal.role
-        flash(f"Welcome, {principal.name}! {school.name}'s platform is ready.", 'success')
-        return redirect(url_for('principal_dashboard', slug=school.slug))
+        flash(f"Thanks, {principal.name}! {school.name}'s application has been submitted for review.", 'success')
+        return redirect(url_for('school_pending', slug=school.slug))
 
     return render_template('register_school.html')
+
+
+def school_is_active(school):
+    return bool(school and school.status == 'approved')
+
+
+@app.route('/school/<slug>/pending')
+def school_pending(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    if school_is_active(school):
+        return redirect(url_for('principal_dashboard', slug=school.slug))
+    return render_template('school_pending.html', school=school)
 
 
 @app.route('/logout')
@@ -1080,6 +1109,8 @@ def dashboard():
         if not user.school:
             flash('No school is linked to your account. Please contact support.', 'error')
             return redirect(url_for('index'))
+        if not school_is_active(user.school):
+            return redirect(url_for('school_pending', slug=user.school.slug))
         return redirect(url_for('principal_dashboard', slug=user.school.slug))
 
     elif user.role == 'admin':
@@ -1088,23 +1119,8 @@ def dashboard():
         groups = Group.query.all()
         teachers = [u for u in users if u.role == 'teacher']
         students = [u for u in users if u.role == 'student']
-
-        schools = School.query.order_by(School.created_at.desc()).all()
-        school_stats = []
-        for s in schools:
-            members = s.members
-            school_stats.append({
-                'school': s,
-                'students': sum(1 for m in members if m.role == 'student'),
-                'teachers': sum(1 for m in members if m.role == 'teacher'),
-                'parents': sum(1 for m in members if m.role == 'parent'),
-                'total_users': len(members),
-                'principal_name': s.principal.name if s.principal else '—',
-            })
-
         return render_template('dashboard_admin.html', users=users, courses=courses,
-                               groups=groups, teachers=teachers, students=students,
-                               schools=schools, school_stats=school_stats)
+                               groups=groups, teachers=teachers, students=students)
 
     return redirect(url_for('index'))
 
@@ -1117,6 +1133,8 @@ def principal_dashboard(slug):
     if not user or user.role != 'principal' or user.school_id != school.id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
 
     active_tab = request.args.get('tab', 'teachers')
     if active_tab not in ('teachers', 'students'):
@@ -1192,6 +1210,8 @@ def principal_add_member(slug):
     if not user or user.role != 'principal' or user.school_id != school.id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
 
     name = request.form.get('name', '').strip()
     email = request.form.get('email', '').strip().lower()
@@ -1209,6 +1229,27 @@ def principal_add_member(slug):
         flash('That email is already registered.', 'error')
         return redirect(url_for('principal_dashboard', slug=slug, tab=f'{role}s'))
 
+    dob = None
+    origin = None
+    subjects_taught = None
+
+    if role == 'teacher':
+        # These three are required for teachers specifically: they become the
+        # verification questions used on the "forgot password" flow, since a
+        # teacher's password can't be recovered via student-style checks.
+        date_of_birth_raw = request.form.get('date_of_birth', '').strip()
+        origin = request.form.get('origin', '').strip()
+        subjects_taught = request.form.get('subjects_taught', '').strip()
+
+        if not date_of_birth_raw or not origin or not subjects_taught:
+            flash('Date of birth, origin, and subjects taught are required when adding a teacher — these are used to verify their identity if they ever need to reset their password.', 'error')
+            return redirect(url_for('principal_dashboard', slug=slug, tab='teachers'))
+
+        dob = parse_date_input(date_of_birth_raw)
+        if not dob:
+            flash('Please enter a valid date of birth (YYYY-MM-DD).', 'error')
+            return redirect(url_for('principal_dashboard', slug=slug, tab='teachers'))
+
     member = User(
         name=name,
         email=email,
@@ -1216,6 +1257,9 @@ def principal_add_member(slug):
         role=role,
         status='approved',
         school_id=school.id,
+        date_of_birth=dob,
+        origin=origin,
+        subjects_taught=subjects_taught,
     )
     db.session.add(member)
     db.session.commit()
@@ -1232,6 +1276,9 @@ def principal_remove_member(slug, user_id):
     if not user or user.role != 'principal' or user.school_id != school.id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
+
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
 
     member = User.query.get_or_404(user_id)
     if member.school_id != school.id or member.role not in ('teacher', 'student'):
@@ -1268,6 +1315,8 @@ def principal_update_branding(slug):
     if not user or user.role != 'principal' or user.school_id != school.id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
 
     logo_file = request.files.get('logo_file')
     if logo_file and logo_file.filename:
@@ -1762,11 +1811,15 @@ def forgot_password():
             {'key': 'courses_interest', 'label': 'Courses of interest'},
         ]
     elif role == 'teacher':
+        # Teachers are added directly by their principal (not self-registered), so
+        # verification uses the identity details the principal entered for them
+        # at that time, rather than course/enrollment data.
         questions = [
             {'key': 'email', 'label': 'Email'},
-            {'key': 'courses_teaching', 'label': 'Name of a course you teach'},
+            {'key': 'full_name', 'label': 'Full name, as registered by your principal'},
             {'key': 'date_of_birth', 'label': 'Date of birth (YYYY-MM-DD)'},
-            {'key': 'two_students', 'label': 'Two students in any of your courses (comma separated)'}
+            {'key': 'origin', 'label': 'Place of origin, as registered by your principal'},
+            {'key': 'subjects_taught', 'label': 'Subjects you teach, as registered by your principal'},
         ]
     else:
         # admin or other roles: ask basic checks
@@ -1833,29 +1886,25 @@ def forgot_password_verify():
             return redirect(url_for('forgot_password'))
 
     elif role == 'teacher':
-        # verify course taught
-        course_input = (request.form.get('courses_teaching') or '').strip().lower()
-        taught_courses = Course.query.filter_by(teacher_id=user.id).all()
-        if taught_courses:
-            if not course_input or not any(course_input in (c.title or '').lower() for c in taught_courses):
+        # Verify against the identity details the principal entered when adding
+        # this teacher: full name, place of origin, and subjects taught.
+        name_input = (request.form.get('full_name') or '').strip().lower()
+        stored_name = (user.name or '').strip().lower()
+        if not name_input or name_input != stored_name:
+            flash('Answers did not match our records.', 'error')
+            return redirect(url_for('forgot_password'))
+
+        origin_input = (request.form.get('origin') or '').strip().lower()
+        stored_origin = (user.origin or '').strip().lower()
+        if stored_origin:
+            if not origin_input or origin_input != stored_origin:
                 flash('Answers did not match our records.', 'error')
                 return redirect(url_for('forgot_password'))
 
-        # verify two students: must match enrolled students in teacher's courses
-        students_input = (request.form.get('two_students') or '').strip()
-        if students_input:
-            names = [n.strip().lower() for n in students_input.split(',') if n.strip()]
-            if len(names) < 2:
-                flash('Please provide two student names.', 'error')
-                return redirect(url_for('forgot_password'))
-            taught_course_ids = [c.id for c in taught_courses]
-            if not taught_course_ids:
-                flash('Answers did not match our records.', 'error')
-                return redirect(url_for('forgot_password'))
-            enrolls = Enrollment.query.filter(Enrollment.course_id.in_(taught_course_ids)).all()
-            student_names = set((en.student.name or '').strip().lower() for en in enrolls if en.student)
-            match_count = sum(1 for n in names if any(n == s or n in s or s in n for s in student_names))
-            if match_count < 2:
+        subjects_input = (request.form.get('subjects_taught') or '').strip().lower()
+        stored_subjects = (user.subjects_taught or '').strip().lower()
+        if stored_subjects:
+            if not subjects_input or (subjects_input not in stored_subjects and stored_subjects not in subjects_input):
                 flash('Answers did not match our records.', 'error')
                 return redirect(url_for('forgot_password'))
 
@@ -2538,6 +2587,39 @@ def delete_user(user_id):
     db.session.commit()
     flash('User deleted.', 'success')
     return redirect(url_for('admin_users'))
+
+@app.route('/admin/schools')
+def admin_schools():
+    user = get_current_user()
+    if not user or user.role != 'admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    schools_list = School.query.order_by(School.created_at.desc()).all()
+    pending_count = sum(1 for s in schools_list if s.status == 'pending')
+    return render_template('admin_schools.html', schools=schools_list, pending_count=pending_count)
+
+
+@app.route('/admin/schools/<int:school_id>/review', methods=['POST'])
+def review_school(school_id):
+    user = get_current_user()
+    if not user or user.role != 'admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    school = School.query.get_or_404(school_id)
+    action = request.form.get('action', 'approve')
+
+    if action == 'deny':
+        school.status = 'denied'
+        db.session.commit()
+        flash(f'{school.name} was denied.', 'info')
+    else:
+        school.status = 'approved'
+        db.session.commit()
+        flash(f'{school.name} was approved and is now live on the platform.', 'success')
+
+    return redirect(url_for('admin_schools'))
+
 
 @app.route('/admin/courses')
 def admin_courses():
