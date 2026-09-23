@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Application Status — {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ school.name }}</h2>
+    <p>Application status</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px;margin:0 auto;text-align:center;padding:48px 32px">
+  {% if school.logo %}
+    <img src="{{ school.logo }}" alt="{{ school.name }} logo" style="width:72px;height:72px;border-radius:16px;object-fit:cover;margin-bottom:20px">
+  {% else %}
+    <div class="user-avatar" style="width:72px;height:72px;font-size:26px;border-radius:16px;margin:0 auto 20px">
+      {{ school.name[0].upper() }}
+    </div>
+  {% endif %}
+
+  {% if school.status == 'pending' %}
+    <span class="badge badge-orange" style="margin-bottom:16px;display:inline-block">Pending Review</span>
+    <h3 style="margin-bottom:12px;color:var(--navy)">Your school's application is under review</h3>
+    <p style="color:var(--gray-600);font-size:15px;line-height:1.6;margin-bottom:24px">
+      Thanks for registering {{ school.name }} on Learn Together. A platform administrator is reviewing your
+      application now. Once approved, your school's dashboard — teacher and student management, branding, and
+      analytics — will unlock automatically. You'll be able to log in and pick up right where you left off.
+    </p>
+  {% elif school.status == 'denied' %}
+    <span class="badge badge-red" style="margin-bottom:16px;display:inline-block">Not Approved</span>
+    <h3 style="margin-bottom:12px;color:var(--navy)">Your school's application wasn't approved</h3>
+    <p style="color:var(--gray-600);font-size:15px;line-height:1.6;margin-bottom:24px">
+      Your application for {{ school.name }} was not approved at this time. If you believe this was a mistake or
+      would like more information, please contact the platform administrator.
+    </p>
+  {% else %}
+    <span class="badge badge-green" style="margin-bottom:16px;display:inline-block">Approved</span>
+    <h3 style="margin-bottom:12px;color:var(--navy)">You're all set!</h3>
+    <p style="color:var(--gray-600);font-size:15px;line-height:1.6;margin-bottom:24px">
+      {{ school.name }} has been approved. Head over to your dashboard to start adding teachers and students.
+    </p>
+    <a href="{{ url_for('principal_dashboard', slug=school.slug) }}" class="btn btn-primary" style="font-weight:600">Go to My Dashboard</a>
+  {% endif %}
+
+  <div style="margin-top:8px">
+    <a href="{{ url_for('logout') }}" style="color:var(--gray-500);font-size:13px;text-decoration:none">Log out</a>
+  </div>
+</div>
+{% endblock %}
