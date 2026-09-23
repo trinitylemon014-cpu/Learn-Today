@@ -1119,8 +1119,14 @@ def dashboard():
         groups = Group.query.all()
         teachers = [u for u in users if u.role == 'teacher']
         students = [u for u in users if u.role == 'student']
+        schools = School.query.order_by(School.created_at.desc()).all()
+        pending_schools = [s for s in schools if s.status == 'pending']
+        approved_schools = [s for s in schools if s.status == 'approved']
         return render_template('dashboard_admin.html', users=users, courses=courses,
-                               groups=groups, teachers=teachers, students=students)
+                               groups=groups, teachers=teachers, students=students,
+                               schools=schools, school_count=len(schools),
+                               pending_school_count=len(pending_schools),
+                               approved_school_count=len(approved_schools))
 
     return redirect(url_for('index'))
 
