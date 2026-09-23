@@ -1122,11 +1122,27 @@ def dashboard():
         schools = School.query.order_by(School.created_at.desc()).all()
         pending_schools = [s for s in schools if s.status == 'pending']
         approved_schools = [s for s in schools if s.status == 'approved']
+
+        school_stats = []
+        for s in schools:
+            school_students = User.query.filter_by(school_id=s.id, role='student').count()
+            school_teachers = User.query.filter_by(school_id=s.id, role='teacher').count()
+            school_parents = User.query.filter_by(school_id=s.id, role='parent').count()
+            school_stats.append({
+                'school': s,
+                'principal_name': s.principal.name if s.principal else '—',
+                'students': school_students,
+                'teachers': school_teachers,
+                'parents': school_parents,
+                'total_users': school_students + school_teachers + school_parents,
+            })
+
         return render_template('dashboard_admin.html', users=users, courses=courses,
                                groups=groups, teachers=teachers, students=students,
                                schools=schools, school_count=len(schools),
                                pending_school_count=len(pending_schools),
-                               approved_school_count=len(approved_schools))
+                               approved_school_count=len(approved_schools),
+                               school_stats=school_stats)
 
     return redirect(url_for('index'))
 
