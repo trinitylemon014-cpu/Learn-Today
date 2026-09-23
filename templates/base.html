@@ -88,6 +88,7 @@
 
       {% if current_user.role == 'principal' %}
       <div class="nav-section-label">My School</div>
+      {% if current_user.school and current_user.school.status == 'approved' %}
       <a href="{{ url_for('principal_dashboard', slug=current_user.school.slug, tab='teachers') }}"
          class="nav-item {% if request.endpoint == 'principal_dashboard' %}active{% endif %}" title="Manage School">
         <span class="nav-icon svg-icon icon-users" aria-hidden="true"></span>
@@ -97,6 +98,13 @@
         <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
         <span class="nav-label">School Courses</span>
       </a>
+      {% else %}
+      <a href="{{ url_for('school_pending', slug=current_user.school.slug) }}"
+         class="nav-item {% if request.endpoint == 'school_pending' %}active{% endif %}" title="Application Status">
+        <span class="nav-icon svg-icon icon-file" aria-hidden="true"></span>
+        <span class="nav-label">Application Status</span>
+      </a>
+      {% endif %}
       {% endif %}
 
       {% if current_user.role == 'admin' %}
@@ -104,6 +112,10 @@
       <a href="{{ url_for('admin_users') }}" class="nav-item" title="Users">
         <span class="nav-icon svg-icon icon-users" aria-hidden="true"></span>
         <span class="nav-label">Users</span>
+      </a>
+      <a href="{{ url_for('admin_schools') }}" class="nav-item {% if request.endpoint in ['admin_schools'] %}active{% endif %}" title="Schools">
+        <span class="nav-icon svg-icon icon-layout" aria-hidden="true"></span>
+        <span class="nav-label">Schools</span>
       </a>
       <a href="{{ url_for('admin_courses') }}" class="nav-item" title="All Courses">
         <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
