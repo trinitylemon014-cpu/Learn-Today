@@ -10,6 +10,7 @@ class School(db.Model):
     slug = db.Column(db.String(100), unique=True, nullable=False)  # used in /school/<slug>/... URLs
     logo = db.Column(db.String(300), nullable=True)
     primary_color = db.Column(db.String(20), nullable=True, default='#2563EB')
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending/approved/denied — set by the platform admin
     principal_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -29,6 +30,8 @@ class User(db.Model):
     previous_school = db.Column(db.String(200), nullable=True)
     courses_interest = db.Column(db.Text, nullable=True)
     cv_path = db.Column(db.String(300), nullable=True)
+    origin = db.Column(db.String(200), nullable=True)  # teacher's place of origin — set by the principal, used for password-recovery verification
+    subjects_taught = db.Column(db.Text, nullable=True)  # teacher's subjects — set by the principal, used for password-recovery verification
     parent_name = db.Column(db.String(100), nullable=True)
     parent_email = db.Column(db.String(150), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
