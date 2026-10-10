@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Courses or Classes — {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>How {{ school.name }} organises learning</h1>
+  <p><a href="{{ url_for('principal_dashboard', slug=school.slug) }}">← Back to {{ school.name }}</a></p>
+</div>
+
+<div class="card" style="margin-bottom:24px;padding:20px">
+  <h3>Learning structure</h3>
+  <form method="POST" action="{{ url_for('principal_structure_mode', slug=school.slug) }}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px">
+    <label style="display:block;cursor:pointer;border:2px solid {{ 'var(--blue)' if not uses_classes_mode else 'var(--gray-200,#e5e7eb)' }};border-radius:12px;padding:14px">
+      <input type="radio" name="learning_mode" value="courses" {% if not uses_classes_mode %}checked{% endif %} style="margin-right:6px">
+      <strong>Courses</strong>
+      <div style="font-size:13px;color:var(--gray-600);margin-top:4px">Teachers create courses with their own titles and content.</div>
+    </label>
+    <label style="display:block;cursor:pointer;border:2px solid {{ 'var(--blue)' if uses_classes_mode else 'var(--gray-200,#e5e7eb)' }};border-radius:12px;padding:14px">
+      <input type="radio" name="learning_mode" value="classes" {% if uses_classes_mode %}checked{% endif %} style="margin-right:6px">
+      <strong>Classes</strong>
+      <div style="font-size:13px;color:var(--gray-600);margin-top:4px">Subjects taught at class levels, e.g. Mathematics for S.2.</div>
+    </label>
+    <div style="grid-column:1/-1"><button class="btn btn-primary">Save choice</button>
+      <span style="font-size:13px;color:var(--gray-500);margin-left:8px">Switching never deletes anything that already exists.</span></div>
+  </form>
+</div>
+
+{% if not uses_classes_mode %}
+  <div class="alert alert-info">Subjects and class levels are only used when your school is set to <strong>Classes</strong>. You can prepare them now.</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px">
+
+  <div class="card" style="padding:20px">
+    <h3>Class levels ({{ levels|length }})</h3>
+    <p style="color:var(--gray-500);font-size:14px">Listed from lowest to highest.</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+      {% for l in levels %}
+        <form method="POST" action="{{ url_for('principal_structure_delete', slug=school.slug, kind='levels', item_id=l.id) }}"
+              style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--gray-200,#e5e7eb);border-radius:999px;padding:4px 6px 4px 12px"
+              onsubmit="return confirm('Remove {{ l.name|e }}?')">
+          <span>{{ l.name }}{% if level_usage[l.id] %} <small style="color:var(--gray-500)">· {{ level_usage[l.id] }}</small>{% endif %}</span>
+          <button title="Remove" style="border:0;background:none;cursor:pointer;color:#b91c1c;font-size:16px;line-height:1">×</button>
+        </form>
+      {% else %}
+        <span style="color:var(--gray-500)">No class levels yet.</span>
+      {% endfor %}
+    </div>
+
+    <form method="POST" action="{{ url_for('principal_add_levels', slug=school.slug) }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input type="text" name="names" class="form-control" style="flex:1;min-width:180px" placeholder="e.g. S.1, S.2, S.3" required>
+      <button class="btn btn-primary">Add</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('principal_add_levels', slug=school.slug) }}" style="display:flex;gap:8px;flex-wrap:wrap">
+      <select name="preset" class="form-control" style="flex:1;min-width:180px" required>
+        <option value="">Quick add a set…</option>
+        {% for key, label in presets %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-outline">Add set</button>
+    </form>
+  </div>
+
+  <div class="card" style="padding:20px">
+    <h3>Subjects ({{ subjects|length }})</h3>
+    <p style="color:var(--gray-500);font-size:14px">Teachers create a class by pairing one of these subjects with a class level.</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+      {% for s in subjects %}
+        <form method="POST" action="{{ url_for('principal_structure_delete', slug=school.slug, kind='subjects', item_id=s.id) }}"
+              style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--gray-200,#e5e7eb);border-radius:999px;padding:4px 6px 4px 12px"
+              onsubmit="return confirm('Remove {{ s.name|e }}?')">
+          <span>{{ s.name }}{% if subject_usage[s.id] %} <small style="color:var(--gray-500)">· {{ subject_usage[s.id] }}</small>{% endif %}</span>
+          <button title="Remove" style="border:0;background:none;cursor:pointer;color:#b91c1c;font-size:16px;line-height:1">×</button>
+        </form>
+      {% else %}
+        <span style="color:var(--gray-500)">No subjects yet.</span>
+      {% endfor %}
+    </div>
+
+    <form method="POST" action="{{ url_for('principal_add_subjects', slug=school.slug) }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input type="text" name="names" class="form-control" style="flex:1;min-width:180px" placeholder="e.g. Mathematics, Physics" required>
+      <button class="btn btn-primary">Add</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('principal_add_subjects', slug=school.slug) }}">
+      <input type="hidden" name="common" value="1">
+      <button class="btn btn-outline">Add common school subjects</button>
+    </form>
+  </div>
+</div>
+
+<p style="color:var(--gray-500);font-size:13px;margin-top:16px">The number after a name is how many classes use it. A subject or level that is in use cannot be removed.</p>
+{% endblock %}

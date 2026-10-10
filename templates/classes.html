@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Classes — {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1>Classes</h1>
+    <p style="color:var(--gray-500)">Subjects and the class levels they are taught at in {{ school.name }}.</p>
+  </div>
+  {% if current_user.role == 'teacher' %}
+    <a href="{{ url_for('create_class') }}" class="btn btn-primary">+ New Class</a>
+  {% elif current_user.role == 'principal' %}
+    <a href="{{ url_for('principal_structure', slug=school.slug) }}" class="btn btn-outline">Manage subjects &amp; class levels</a>
+  {% endif %}
+</div>
+
+{% if levels %}
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px">
+  <a href="{{ url_for('courses') }}"
+     style="padding:6px 14px;border-radius:999px;font-size:14px;text-decoration:none;border:1px solid var(--blue);{% if not active_level %}background:var(--blue);color:#fff{% else %}color:var(--blue){% endif %}">All levels</a>
+  {% for l in levels %}
+    <a href="{{ url_for('courses', level=l.id) }}"
+       style="padding:6px 14px;border-radius:999px;font-size:14px;text-decoration:none;border:1px solid var(--blue);{% if active_level == l.id %}background:var(--blue);color:#fff{% else %}color:var(--blue){% endif %}">{{ l.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not has_structure %}
+  <div class="card" style="padding:24px">
+    <h3>Subjects and class levels are not set up yet</h3>
+    {% if current_user.role == 'principal' %}
+      <p>Add your subjects and class levels first, then teachers can create classes.</p>
+      <a href="{{ url_for('principal_structure', slug=school.slug) }}" class="btn btn-primary">Set them up</a>
+    {% else %}
+      <p>Your principal needs to add the school's subjects and class levels before classes can be created.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% for block in blocks %}
+  <div class="card" style="margin-bottom:20px;padding:20px">
+    <h3 style="margin-bottom:12px">{{ block.subject.name }}</h3>
+    {% for c in block.classes %}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--gray-200,#e5e7eb)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="background:var(--blue);color:#fff;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600;white-space:nowrap">{{ c.class_level.name if c.class_level else c.level }}</span>
+          <div>
+            <a href="{{ url_for('course_detail', course_id=c.id) }}" style="font-weight:600;text-decoration:none;color:inherit">{{ c.title }}</a>
+            <div style="font-size:13px;color:var(--gray-500)">Taught by {{ c.teacher.name if c.teacher else '—' }} · {{ c.enrollments|length }} student{{ '' if c.enrollments|length == 1 else 's' }}</div>
+          </div>
+        </div>
+        <div>
+          {% if current_user.role == 'student' %}
+            {% if c.id in enrolled_ids %}
+              <a href="{{ url_for('course_detail', course_id=c.id) }}" class="btn btn-outline">Open</a>
+            {% else %}
+              <form method="POST" action="{{ url_for('enroll_course', course_id=c.id) }}">
+                <button class="btn btn-primary">Join class</button>
+              </form>
+            {% endif %}
+          {% else %}
+            <a href="{{ url_for('course_detail', course_id=c.id) }}" class="btn btn-outline">View</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  {% if has_structure %}
+    <div class="card" style="padding:24px">
+      <p style="color:var(--gray-500);margin:0">{% if active_level %}No classes at this level yet.{% else %}No classes have been created yet.{% endif %}</p>
+    </div>
+  {% endif %}
+{% endfor %}
+
+{% if legacy_courses %}
+  <div class="card" style="margin-top:24px;padding:20px">
+    <h3 style="margin-bottom:12px">Other courses</h3>
+    {% for c in legacy_courses %}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--gray-200,#e5e7eb)">
+        <div>
+          <a href="{{ url_for('course_detail', course_id=c.id) }}" style="font-weight:600;text-decoration:none;color:inherit">{{ c.title }}</a>
+          <div style="font-size:13px;color:var(--gray-500)">{{ c.teacher.name if c.teacher else '—' }}</div>
+        </div>
+        {% if current_user.role == 'student' and c.id not in enrolled_ids %}
+          <form method="POST" action="{{ url_for('enroll_course', course_id=c.id) }}"><button class="btn btn-primary">Enroll</button></form>
+        {% else %}
+          <a href="{{ url_for('course_detail', course_id=c.id) }}" class="btn btn-outline">View</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

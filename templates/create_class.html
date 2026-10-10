@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}New Class — {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Create a class</h1>
+  <p style="color:var(--gray-500)">A class is one subject taught at one class level.</p>
+</div>
+
+{% if not subjects or not levels %}
+  <div class="card" style="padding:24px;max-width:640px">
+    <h3>Not ready yet</h3>
+    <p>Your principal needs to add the school's {% if not subjects %}subjects{% endif %}{% if not subjects and not levels %} and {% endif %}{% if not levels %}class levels{% endif %} before you can create a class.</p>
+  </div>
+{% else %}
+  <div class="card" style="padding:24px;max-width:640px">
+    <form method="POST" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select name="subject_id" class="form-control" required>
+          <option value="">Choose a subject…</option>
+          {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Class level</label>
+        <select name="class_level_id" class="form-control" required>
+          <option value="">Choose a class level…</option>
+          {% for l in levels %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+        <textarea name="description" class="form-control" rows="4" placeholder="What will students learn in this class?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Cover image <span style="color:var(--gray-400);font-weight:400">(Optional)</span></label>
+        <input type="file" name="thumbnail_file" class="form-control" accept="image/*">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="submit" class="btn btn-primary">Create class</button>
+        <a href="{{ url_for('courses') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}
