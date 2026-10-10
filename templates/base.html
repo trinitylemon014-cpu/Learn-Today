@@ -10,6 +10,25 @@
   {% if current_user and current_user.school and current_user.school.primary_color %}
   <style>:root { --blue: {{ current_user.school.primary_color }}; }</style>
   {% endif %}
+  <style>
+    /* Scrollable sidebar: logo, user card and footer stay put; the menu scrolls. */
+    .sidebar { display: flex; flex-direction: column; max-height: 100vh; max-height: 100dvh; }
+    .sidebar-logo, .sidebar-user, .sidebar-footer { flex-shrink: 0; }
+    .sidebar-nav {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+    }
+    .sidebar-nav::-webkit-scrollbar { width: 6px; }
+    .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.28); border-radius: 6px; }
+    .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.45); }
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -55,9 +74,9 @@
         <span class="nav-icon svg-icon icon-dashboard" aria-hidden="true"></span>
         <span class="nav-label">Dashboard</span>
       </a>
-      <a href="{{ url_for('courses') }}" class="nav-item {% if 'course' in request.endpoint %}active{% endif %}" title="Courses">
+      <a href="{{ url_for('courses') }}" class="nav-item {% if 'course' in request.endpoint or 'class' in request.endpoint %}active{% endif %}" title="{{ 'Classes' if uses_classes else 'Courses' }}">
         <span class="nav-icon svg-icon icon-courses" aria-hidden="true"></span>
-        <span class="nav-label">Courses</span>
+        <span class="nav-label">{{ 'Classes' if uses_classes else 'Courses' }}</span>
       </a>
       <a href="{{ url_for('groups') }}" class="nav-item {% if 'group' in request.endpoint %}active{% endif %}" title="Groups">
         <span class="nav-icon svg-icon icon-groups" aria-hidden="true"></span>
@@ -66,9 +85,9 @@
 
       {% if current_user.role == 'teacher' %}
       <div class="nav-section-label">Teaching</div>
-      <a href="{{ url_for('create_course') }}" class="nav-item" title="New Course">
+      <a href="{{ url_for('create_class') if uses_classes else url_for('create_course') }}" class="nav-item" title="{{ 'New Class' if uses_classes else 'New Course' }}">
         <span class="nav-icon svg-icon icon-add" aria-hidden="true"></span>
-        <span class="nav-label">New Course</span>
+        <span class="nav-label">{{ 'New Class' if uses_classes else 'New Course' }}</span>
       </a>
       {% if current_user.courses_taught %}
       <a href="{{ url_for('analytics', course_id=current_user.courses_taught[0].id) }}" class="nav-item {% if request.endpoint == 'analytics' %}active{% endif %}" title="Analytics">
@@ -94,9 +113,22 @@
         <span class="nav-icon svg-icon icon-users" aria-hidden="true"></span>
         <span class="nav-label">Teachers &amp; Students</span>
       </a>
-      <a href="{{ url_for('admin_courses') }}" class="nav-item" title="School Courses">
+      <a href="{{ url_for('principal_approvals', slug=current_user.school.slug) }}"
+         class="nav-item {% if request.endpoint in ['principal_approvals'] %}active{% endif %}" title="Approvals">
+        <span class="nav-icon svg-icon icon-file" aria-hidden="true"></span>
+        <span class="nav-label">Approvals</span>
+        {% if pending_approvals_count %}
+        <span style="margin-left:auto;background:#dc2626;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:16px">{{ pending_approvals_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('principal_structure', slug=current_user.school.slug) }}"
+         class="nav-item {% if request.endpoint in ['principal_structure'] %}active{% endif %}" title="Classes &amp; Subjects">
+        <span class="nav-icon svg-icon icon-layout" aria-hidden="true"></span>
+        <span class="nav-label">{{ 'Subjects & Class Levels' if uses_classes else 'Courses or Classes' }}</span>
+      </a>
+      <a href="{{ url_for('admin_courses') }}" class="nav-item" title="{{ 'School Classes' if uses_classes else 'School Courses' }}">
         <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
-        <span class="nav-label">School Courses</span>
+        <span class="nav-label">{{ 'School Classes' if uses_classes else 'School Courses' }}</span>
       </a>
       {% else %}
       <a href="{{ url_for('school_pending', slug=current_user.school.slug) }}"
@@ -116,6 +148,9 @@
       <a href="{{ url_for('admin_schools') }}" class="nav-item {% if request.endpoint in ['admin_schools'] %}active{% endif %}" title="Schools">
         <span class="nav-icon svg-icon icon-layout" aria-hidden="true"></span>
         <span class="nav-label">Schools</span>
+        {% if pending_approvals_count %}
+        <span style="margin-left:auto;background:#dc2626;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:16px">{{ pending_approvals_count }}</span>
+        {% endif %}
       </a>
       <a href="{{ url_for('admin_courses') }}" class="nav-item" title="All Courses">
         <span class="nav-icon svg-icon icon-courses-list" aria-hidden="true"></span>
