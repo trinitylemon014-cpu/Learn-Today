@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, get_flashed_messages
 from flask_socketio import SocketIO, join_room, leave_room
-from models import db, User, Course, Enrollment, Group, GroupMember, Message, MessageVisibility, MessageDelivery, Progress, ActivityLog, Attendance, AttendanceSession, CourseContent, Notification, ApplicationPageConfig, ScheduledLesson, CalendarEvent, SiteMedia, School
+from models import db, User, Course, Enrollment, Group, GroupMember, Message, MessageVisibility, MessageDelivery, Progress, ActivityLog, Attendance, AttendanceSession, CourseContent, Notification, ApplicationPageConfig, ScheduledLesson, CalendarEvent, SiteMedia, School, PasswordResetRequest, Subject, ClassLevel
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover
@@ -631,6 +631,10 @@ def ensure_database_schema():
             if 'school_id' not in columns:
                 db.session.execute(text("ALTER TABLE courses ADD COLUMN school_id INTEGER"))
                 db.session.commit()
+            for column_name in ('subject_id', 'class_level_id'):
+                if column_name not in columns:
+                    db.session.execute(text(f"ALTER TABLE courses ADD COLUMN {column_name} INTEGER"))
+                    db.session.commit()
         if 'attendance_sessions' in existing_tables:
             columns = {column['name'] for column in inspector.get_columns('attendance_sessions')}
             if 'school_id' not in columns:
@@ -644,6 +648,12 @@ def ensure_database_schema():
                 # Any school that already existed before this feature shipped was
                 # effectively already "live" — don't retroactively lock it out.
                 db.session.execute(text("UPDATE schools SET status='approved' WHERE status IS NULL"))
+                db.session.commit()
+            if 'learning_mode' not in columns:
+                db.session.execute(text("ALTER TABLE schools ADD COLUMN learning_mode VARCHAR(20) DEFAULT 'courses'"))
+                db.session.commit()
+                # Every school that existed before this feature keeps working as a courses school.
+                db.session.execute(text("UPDATE schools SET learning_mode='courses' WHERE learning_mode IS NULL"))
                 db.session.commit()
         if 'users' in existing_tables:
             columns = {column['name'] for column in inspector.get_columns('users')}
@@ -746,9 +756,24 @@ def inject_user():
     user = get_current_user()
     unread_count = 0
     user_group_ids = []
+    uses_classes = False
+    pending_approvals_count = 0
     if user:
         unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
         user_group_ids = [gm.group_id for gm in GroupMember.query.filter_by(user_id=user.id).all()]
+        uses_classes = school_uses_classes(user.school) if user.school_id else False
+        # Badge in the sidebar: things that are waiting for THIS person to decide.
+        if user.role == 'principal' and user.school_id and user.school and user.school.status == 'approved':
+            pending_approvals_count = (
+                User.query.filter_by(school_id=user.school_id, role='teacher', status='pending').count()
+                + PasswordResetRequest.query.filter_by(
+                    school_id=user.school_id, approver_role='principal', status='pending').count()
+            )
+        elif user.role == 'admin':
+            pending_approvals_count = (
+                School.query.filter_by(status='pending').count()
+                + PasswordResetRequest.query.filter_by(approver_role='admin', status='pending').count()
+            )
     return {
         'current_user': user,
         'identity_for_user': user_identity,
@@ -756,10 +781,237 @@ def inject_user():
         'can_manage_message': can_manage_message,
         'unread_notification_count': unread_count,
         'user_group_ids': user_group_ids,
+        'uses_classes': uses_classes,
+        'pending_approvals_count': pending_approvals_count,
         'SUPABASE_URL': SUPABASE_URL,
         'SUPABASE_ANON_KEY': SUPABASE_ANON_KEY,
         'media_url': media_url,
     }
+
+
+# ─── APPROVAL / DELETION HELPERS ────────────────────────────────────────────
+def _norm(value):
+    return re.sub(r'\s+', ' ', (value or '').strip().lower())
+
+
+def _subject_set(value):
+    parts = re.split(r'[,;/\n]+|\band\b', (value or '').lower())
+    return {_norm(p) for p in parts if _norm(p)}
+
+
+def get_approved_schools():
+    return School.query.filter_by(status='approved').order_by(School.name).all()
+
+
+# ─── CLASSES vs COURSES ─────────────────────────────────────────────────────
+# A school chooses how it organises learning when it registers:
+#   courses : free-form courses (the original behaviour)
+#   classes : Subject -> Class level (e.g. Mathematics / Form 2). Each
+#             subject+level pair is stored as a Course row, so enrolment,
+#             groups, attendance, analytics and content all keep working.
+LEARNING_MODES = ('courses', 'classes')
+
+CLASS_LEVEL_PRESETS = {
+    'primary_1_7':   ('Primary 1 – 7',                 [f'Primary {i}' for i in range(1, 8)]),
+    'secondary_1_6': ('Secondary S.1 – S.6',           [f'S.{i}' for i in range(1, 7)]),
+    'p1_s6':         ('Primary P.1–P.7 and Secondary S.1–S.6',
+                      [f'P.{i}' for i in range(1, 8)] + [f'S.{i}' for i in range(1, 7)]),
+    'grade_1_12':    ('Grade 1 – 12',                  [f'Grade {i}' for i in range(1, 13)]),
+    'form_1_6':      ('Form 1 – 6',                    [f'Form {i}' for i in range(1, 7)]),
+}
+
+COMMON_SUBJECTS = [
+    'Mathematics', 'English Language', 'Science', 'Physics', 'Chemistry', 'Biology',
+    'History', 'Geography', 'Religious Education', 'Computer Studies', 'Literature',
+    'Social Studies', 'Entrepreneurship', 'Art and Design', 'Physical Education',
+]
+
+
+def school_uses_classes(school):
+    return bool(school and (school.learning_mode or 'courses') == 'classes')
+
+
+def _add_class_levels(school_id, names):
+    """Add class levels (skipping duplicates, case-insensitive). Returns how many were added."""
+    existing = {_norm(l.name) for l in ClassLevel.query.filter_by(school_id=school_id).all()}
+    last = db.session.query(db.func.max(ClassLevel.position)).filter(ClassLevel.school_id == school_id).scalar()
+    position = (last if last is not None else -1) + 1
+    added = 0
+    for raw in names:
+        name = re.sub(r'\s+', ' ', (raw or '').strip())[:60]
+        if not name or _norm(name) in existing:
+            continue
+        db.session.add(ClassLevel(school_id=school_id, name=name, position=position))
+        existing.add(_norm(name))
+        position += 1
+        added += 1
+    return added
+
+
+def _add_subjects(school_id, names):
+    existing = {_norm(s.name) for s in Subject.query.filter_by(school_id=school_id).all()}
+    added = 0
+    for raw in names:
+        name = re.sub(r'\s+', ' ', (raw or '').strip())[:120]
+        if not name or _norm(name) in existing:
+            continue
+        db.session.add(Subject(school_id=school_id, name=name))
+        existing.add(_norm(name))
+        added += 1
+    return added
+
+
+def _split_names(value):
+    return [p for p in re.split(r'[,\n;]+', value or '') if p.strip()]
+
+
+def _principal_context(slug):
+    """Common guard for principal pages. Returns (user, school, redirect_response)."""
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return None, None, redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return None, None, redirect(url_for('school_pending', slug=school.slug))
+    return user, school, None
+
+
+def _student_subject_matches(user, entered):
+    """True if the subject a student typed is one they are really learning:
+    a subject/category of a class or course they are enrolled in, part of an
+    enrolled title, or one of their recorded courses of interest."""
+    entered = _norm(entered)
+    if len(entered) < 2:
+        return False
+    tokens, titles = set(), []
+    for en in Enrollment.query.filter_by(student_id=user.id).all():
+        c = en.course
+        if not c:
+            continue
+        titles.append(_norm(c.title))
+        if c.category:
+            tokens.add(_norm(c.category))
+        if c.subject:
+            tokens.add(_norm(c.subject.name))
+    tokens |= _subject_set(user.courses_interest)
+    if entered in tokens:
+        return True
+    return len(entered) >= 3 and any(entered in t for t in titles)
+
+
+def _delete_messages(message_ids):
+    message_ids = list(message_ids)
+    if not message_ids:
+        return
+    for m in db.session.query(Message).filter(Message.id.in_(message_ids)).all():
+        delete_supabase_file(m.attachment_url)
+    Notification.query.filter(Notification.message_id.in_(message_ids)).delete(synchronize_session=False)
+    MessageDelivery.query.filter(MessageDelivery.message_id.in_(message_ids)).delete(synchronize_session=False)
+    MessageVisibility.query.filter(MessageVisibility.message_id.in_(message_ids)).delete(synchronize_session=False)
+    Message.query.filter(Message.id.in_(message_ids)).delete(synchronize_session=False)
+
+
+def _delete_groups(group_ids):
+    group_ids = list(group_ids)
+    if not group_ids:
+        return
+    msg_ids = [r[0] for r in db.session.query(Message.id).filter(Message.group_id.in_(group_ids)).all()]
+    _delete_messages(msg_ids)
+    Notification.query.filter(Notification.group_id.in_(group_ids)).delete(synchronize_session=False)
+    for g in db.session.query(Group).filter(Group.id.in_(group_ids)).all():
+        delete_supabase_file(g.avatar)
+    GroupMember.query.filter(GroupMember.group_id.in_(group_ids)).delete(synchronize_session=False)
+    Group.query.filter(Group.id.in_(group_ids)).delete(synchronize_session=False)
+
+
+def _delete_courses(course_ids):
+    course_ids = list(course_ids)
+    if not course_ids:
+        return
+    group_ids = [r[0] for r in db.session.query(Group.id).filter(Group.course_id.in_(course_ids)).all()]
+    _delete_groups(group_ids)
+    session_ids = [r[0] for r in db.session.query(AttendanceSession.id).filter(AttendanceSession.course_id.in_(course_ids)).all()]
+    if session_ids:
+        Attendance.query.filter(Attendance.session_id.in_(session_ids)).delete(synchronize_session=False)
+    Attendance.query.filter(Attendance.course_id.in_(course_ids)).delete(synchronize_session=False)
+    AttendanceSession.query.filter(AttendanceSession.course_id.in_(course_ids)).delete(synchronize_session=False)
+    ScheduledLesson.query.filter(ScheduledLesson.course_id.in_(course_ids)).delete(synchronize_session=False)
+    ActivityLog.query.filter(ActivityLog.course_id.in_(course_ids)).delete(synchronize_session=False)
+    Progress.query.filter(Progress.course_id.in_(course_ids)).delete(synchronize_session=False)
+    Enrollment.query.filter(Enrollment.course_id.in_(course_ids)).delete(synchronize_session=False)
+    for c in db.session.query(Course).filter(Course.id.in_(course_ids)).all():
+        delete_supabase_file(c.thumbnail)
+    for cc in db.session.query(CourseContent).filter(CourseContent.course_id.in_(course_ids)).all():
+        delete_supabase_file(cc.content_url)   # no-op for external links
+    CourseContent.query.filter(CourseContent.course_id.in_(course_ids)).delete(synchronize_session=False)
+    Course.query.filter(Course.id.in_(course_ids)).delete(synchronize_session=False)
+
+
+def _delete_users(user_ids, reassign_to=None):
+    """Delete users and every row that points at them. Caller commits.
+
+    If reassign_to is given, courses / groups / lessons / attendance sessions
+    owned by the deleted users are handed to that user instead of deleted
+    (used when a principal removes a teacher).
+    """
+    user_ids = list(user_ids)
+    if not user_ids:
+        return
+    if reassign_to:
+        Course.query.filter(Course.teacher_id.in_(user_ids)).update({'teacher_id': reassign_to}, synchronize_session=False)
+        Group.query.filter(Group.created_by.in_(user_ids)).update({'created_by': reassign_to}, synchronize_session=False)
+        ScheduledLesson.query.filter(ScheduledLesson.teacher_id.in_(user_ids)).update({'teacher_id': reassign_to}, synchronize_session=False)
+        AttendanceSession.query.filter(AttendanceSession.created_by.in_(user_ids)).update({'created_by': reassign_to}, synchronize_session=False)
+    else:
+        _delete_courses([r[0] for r in db.session.query(Course.id).filter(Course.teacher_id.in_(user_ids)).all()])
+        _delete_groups([r[0] for r in db.session.query(Group.id).filter(Group.created_by.in_(user_ids)).all()])
+    _delete_messages([r[0] for r in db.session.query(Message.id).filter(Message.sender_id.in_(user_ids)).all()])
+    GroupMember.query.filter(GroupMember.user_id.in_(user_ids)).delete(synchronize_session=False)
+    Enrollment.query.filter(Enrollment.student_id.in_(user_ids)).delete(synchronize_session=False)
+    Progress.query.filter(Progress.student_id.in_(user_ids)).delete(synchronize_session=False)
+    ActivityLog.query.filter(ActivityLog.student_id.in_(user_ids)).delete(synchronize_session=False)
+    Attendance.query.filter(Attendance.student_id.in_(user_ids)).delete(synchronize_session=False)
+    MessageVisibility.query.filter(MessageVisibility.user_id.in_(user_ids)).delete(synchronize_session=False)
+    MessageDelivery.query.filter(MessageDelivery.user_id.in_(user_ids)).delete(synchronize_session=False)
+    CalendarEvent.query.filter(CalendarEvent.user_id.in_(user_ids)).delete(synchronize_session=False)
+    Notification.query.filter(db.or_(Notification.user_id.in_(user_ids), Notification.sender_id.in_(user_ids))).delete(synchronize_session=False)
+    if not reassign_to:
+        ScheduledLesson.query.filter(ScheduledLesson.teacher_id.in_(user_ids)).delete(synchronize_session=False)
+        sess_ids = [r[0] for r in db.session.query(AttendanceSession.id).filter(AttendanceSession.created_by.in_(user_ids)).all()]
+        if sess_ids:
+            Attendance.query.filter(Attendance.session_id.in_(sess_ids)).delete(synchronize_session=False)
+            AttendanceSession.query.filter(AttendanceSession.id.in_(sess_ids)).delete(synchronize_session=False)
+    PasswordResetRequest.query.filter(PasswordResetRequest.user_id.in_(user_ids)).delete(synchronize_session=False)
+    PasswordResetRequest.query.filter(PasswordResetRequest.resolved_by.in_(user_ids)).update({'resolved_by': None}, synchronize_session=False)
+    User.query.filter(User.parent_id.in_(user_ids)).update({'parent_id': None}, synchronize_session=False)
+    School.query.filter(School.principal_id.in_(user_ids)).update({'principal_id': None}, synchronize_session=False)
+    for u in db.session.query(User).filter(User.id.in_(user_ids)).all():
+        delete_supabase_file(u.avatar)
+        delete_supabase_file(u.cv_path)
+    User.query.filter(User.id.in_(user_ids)).delete(synchronize_session=False)
+
+
+def delete_school_cascade(school_id):
+    """Removes a school and everything that belongs to it. Caller commits/rolls back."""
+    school = db.session.get(School, school_id)
+    if not school:
+        return
+    logo = school.logo
+    user_ids = [r[0] for r in db.session.query(User.id).filter(User.school_id == school_id).all()]
+    _delete_courses([r[0] for r in db.session.query(Course.id).filter(Course.school_id == school_id).all()])
+    _delete_groups([r[0] for r in db.session.query(Group.id).filter(Group.school_id == school_id).all()])
+    sess_ids = [r[0] for r in db.session.query(AttendanceSession.id).filter(AttendanceSession.school_id == school_id).all()]
+    if sess_ids:
+        Attendance.query.filter(Attendance.session_id.in_(sess_ids)).delete(synchronize_session=False)
+        AttendanceSession.query.filter(AttendanceSession.id.in_(sess_ids)).delete(synchronize_session=False)
+    ScheduledLesson.query.filter(ScheduledLesson.school_id == school_id).delete(synchronize_session=False)
+    PasswordResetRequest.query.filter(PasswordResetRequest.school_id == school_id).delete(synchronize_session=False)
+    _delete_users(user_ids)
+    Subject.query.filter(Subject.school_id == school_id).delete(synchronize_session=False)
+    ClassLevel.query.filter(ClassLevel.school_id == school_id).delete(synchronize_session=False)
+    School.query.filter(School.id == school_id).delete(synchronize_session=False)
+    delete_supabase_file(logo)
 
 
 # ─── AUTH ROUTES ────────────────────────────────────────────────────────────
@@ -820,7 +1072,10 @@ def application_status():
         status_text = 'Your application is being processed. Please use the email you applied with and check again shortly.'
         show_setup_link = False
     elif user.status == 'pending':
-        status_text = 'Your application is pending review by the Learn Together admin team. Please allow up to one hour for a response.'
+        if user.role == 'teacher' and user.school:
+            status_text = f'Your application is waiting for approval by the principal of {user.school.name}. You will be able to set your password once it is approved.'
+        else:
+            status_text = 'Your application is pending review by the Learn Together admin team. Please allow up to one hour for a response.'
         show_setup_link = False
     elif user.status == 'approved':
         if user.password == hash_password(''):
@@ -830,7 +1085,10 @@ def application_status():
             status_text = 'Your application has been approved. Return to the login page and sign in using your approved email.'
             show_setup_link = False
     elif user.status == 'denied':
-        status_text = 'Your application has been denied. Please contact the admin for details or to request a review.'
+        if user.role == 'teacher' and user.school:
+            status_text = f'Your application was denied by the principal of {user.school.name}. Please contact the school for details.'
+        else:
+            status_text = 'Your application has been denied. Please contact the admin for details or to request a review.'
         show_setup_link = False
     else:
         status_text = 'Your application is being processed. Please use the email you applied with and check again shortly.'
@@ -849,12 +1107,12 @@ def setup_password():
         if not user:
             flash('No approved account found for this email.', 'error')
             return redirect(url_for('application_status', email=email))
-        if user.status != 'approved' and user.password != hash_password(''):
-            flash('This account is not ready for password setup yet.', 'error')
+        # Only an account that someone with authority has APPROVED, and that has
+        # no password yet, may use this page. (The old code let a pending user
+        # approve themselves here, which bypassed every approval step.)
+        if user.status != 'approved' or user.password != hash_password(''):
+            flash('This account is not ready for password setup. It must be approved first.', 'error')
             return redirect(url_for('application_status', email=email))
-        if user.status != 'approved' and user.password == hash_password(''):
-            user.status = 'approved'
-            db.session.commit()
         if password != confirm_password:
             flash('Passwords do not match.', 'error')
             return render_template('setup_password.html', email=email)
@@ -909,27 +1167,43 @@ def parent_setup_password(token):
     login_media = SiteMedia.query.filter_by(media_type='login_image', is_active=True).first()
     return render_template('parent_setup_password.html', token=token, parent_email=parent.email, login_media=login_media)
 
-    return render_template('setup_password.html', email=email)
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    signup_media = SiteMedia.query.filter_by(media_type='signup_image', is_active=True).first()
+    schools = get_approved_schools()
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip().lower()
         role = request.form.get('role', 'student')
+        if role not in ('student', 'teacher', 'parent'):
+            role = 'student'   # never trust a client-supplied role such as "admin"
         parent_email = request.form.get('parent_email', '').strip().lower()
         parent_name = request.form.get('parent_name', '').strip()
         date_of_birth = request.form.get('date_of_birth', '').strip()
         previous_school = request.form.get('previous_school', '').strip()
         courses_interest = request.form.get('courses_interest', '').strip()
-        cv_file = request.files.get('cv_file')
-        cv_path = save_uploaded_file(cv_file, 'documents', ALLOWED_DOCUMENT_EXTENSIONS | {'pdf'}) if cv_file else None
-        signup_media = SiteMedia.query.filter_by(media_type='signup_image', is_active=True).first()
+        subjects_taught = request.form.get('subjects_taught', '').strip()
+        school_id = request.form.get('school_id', type=int)
 
         if User.query.filter_by(email=email).first():
             flash('Email already registered.', 'error')
-            return render_template('register.html', signup_media=signup_media)
+            return render_template('register.html', signup_media=signup_media, schools=schools)
+
+        # Teachers must belong to an approved school; that school's principal
+        # (not the platform admin) approves them.
+        school = None
+        if role == 'teacher':
+            school = School.query.filter_by(id=school_id, status='approved').first() if school_id else None
+            if not school:
+                flash('Please choose the school you teach at.', 'error')
+                return render_template('register.html', signup_media=signup_media, schools=schools)
+            if not _subject_set(subjects_taught):
+                flash('Please enter the subjects you teach.', 'error')
+                return render_template('register.html', signup_media=signup_media, schools=schools)
+
+        cv_file = request.files.get('cv_file')
+        cv_path = save_uploaded_file(cv_file, 'documents', ALLOWED_DOCUMENT_EXTENSIONS | {'pdf'}) if cv_file else None
 
         user = User(
             name=name,
@@ -937,6 +1211,8 @@ def register():
             password=hash_password(''),
             role=role,
             status='pending',
+            school_id=school.id if school else None,
+            subjects_taught=subjects_taught if role == 'teacher' else None,
             date_of_birth=datetime.strptime(date_of_birth, '%Y-%m-%d').date() if date_of_birth else None,
             previous_school=previous_school if role == 'student' else None,
             courses_interest=courses_interest if role == 'student' else None,
@@ -953,10 +1229,12 @@ def register():
                 user.parent_id = parent.id
                 db.session.commit()
 
-        flash('Your application has been submitted. An admin will review it shortly.', 'success')
+        if role == 'teacher':
+            flash(f'Your application was sent to the principal of {school.name}. You can set your password once they approve it.', 'success')
+        else:
+            flash('Your application has been submitted. An admin will review it shortly.', 'success')
         return redirect(url_for('application_status', email=email))
-    signup_media = SiteMedia.query.filter_by(media_type='signup_image', is_active=True).first()
-    return render_template('register.html', signup_media=signup_media)
+    return render_template('register.html', signup_media=signup_media, schools=schools)
 
 
 # ─── SCHOOL REGISTRATION (multi-tenant onboarding) ─────────────────────────
@@ -967,6 +1245,10 @@ def register_school():
         requested_slug = request.form.get('school_slug', '').strip().lower()
         principal_name = request.form.get('principal_name', '').strip()
         principal_email = request.form.get('principal_email', '').strip().lower()
+        learning_mode = request.form.get('learning_mode', 'courses')
+        if learning_mode not in LEARNING_MODES:
+            learning_mode = 'courses'
+        level_preset = request.form.get('class_level_preset', '')
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
 
@@ -994,9 +1276,12 @@ def register_school():
             flash('That email is already registered.', 'error')
             return render_template('register_school.html')
 
-        school = School(name=school_name, slug=requested_slug, primary_color='#2563EB', status='pending')
+        school = School(name=school_name, slug=requested_slug, primary_color='#2563EB',
+                        status='pending', learning_mode=learning_mode)
         db.session.add(school)
         db.session.flush()
+        if learning_mode == 'classes' and level_preset in CLASS_LEVEL_PRESETS:
+            _add_class_levels(school.id, CLASS_LEVEL_PRESETS[level_preset][1])
 
         principal = User(
             name=principal_name,
@@ -1119,12 +1404,15 @@ def dashboard():
         groups = Group.query.all()
         teachers = [u for u in users if u.role == 'teacher']
         students = [u for u in users if u.role == 'student']
-        schools = School.query.order_by(School.created_at.desc()).all()
-        pending_schools = [s for s in schools if s.status == 'pending']
-        approved_schools = [s for s in schools if s.status == 'approved']
+        all_schools = School.query.order_by(School.created_at.desc()).all()
+        pending_schools = [s for s in all_schools if s.status == 'pending']
+        approved_schools = [s for s in all_schools if s.status == 'approved']
+        pending_reset_count = PasswordResetRequest.query.filter_by(approver_role='admin', status='pending').count()
 
+        # Only APPROVED schools are part of the platform's school list and stats.
+        # Registrations still waiting for a decision are passed separately.
         school_stats = []
-        for s in schools:
+        for s in approved_schools:
             school_students = User.query.filter_by(school_id=s.id, role='student').count()
             school_teachers = User.query.filter_by(school_id=s.id, role='teacher').count()
             school_parents = User.query.filter_by(school_id=s.id, role='parent').count()
@@ -1139,9 +1427,11 @@ def dashboard():
 
         return render_template('dashboard_admin.html', users=users, courses=courses,
                                groups=groups, teachers=teachers, students=students,
-                               schools=schools, school_count=len(schools),
+                               schools=approved_schools, school_count=len(approved_schools),
                                pending_school_count=len(pending_schools),
                                approved_school_count=len(approved_schools),
+                               pending_schools=pending_schools,
+                               pending_reset_count=pending_reset_count,
                                school_stats=school_stats)
 
     return redirect(url_for('index'))
@@ -1217,12 +1507,23 @@ def principal_dashboard(slug):
         month_labels.append(month_start.strftime('%b'))
         month_counts.append(count)
 
+    # Items that need the principal's decision (shown on the approvals page).
+    pending_teacher_count = User.query.filter_by(school_id=school.id, role='teacher', status='pending').count()
+    pending_reset_count = PasswordResetRequest.query.filter_by(
+        school_id=school.id, approver_role='principal', status='pending').count()
+    if pending_teacher_count or pending_reset_count:
+        flash(f'Waiting for you: {pending_teacher_count} teacher application(s) and '
+              f'{pending_reset_count} password reset request(s). '
+              f'Open /school/{school.slug}/approvals to review them.', 'info')
+
     return render_template('principal_dashboard.html', school=school, active_tab=active_tab,
                            teacher_count=teacher_count, student_count=student_count,
                            course_count=course_count, members=members,
                            course_rows=course_rows, total_enrollments=total_enrollments,
                            school_avg_progress=school_avg_progress,
-                           month_labels=month_labels, month_counts=month_counts)
+                           month_labels=month_labels, month_counts=month_counts,
+                           pending_teacher_count=pending_teacher_count,
+                           pending_reset_count=pending_reset_count)
 
 
 @app.route('/school/<slug>/members/add', methods=['POST'])
@@ -1308,25 +1609,20 @@ def principal_remove_member(slug, user_id):
         return redirect(url_for('principal_dashboard', slug=slug))
 
     tab = 'teachers' if member.role == 'teacher' else 'students'
-
-    if member.role == 'student':
-        Enrollment.query.filter_by(student_id=member.id).delete(synchronize_session=False)
-        Progress.query.filter_by(student_id=member.id).delete(synchronize_session=False)
-        Attendance.query.filter_by(student_id=member.id).delete(synchronize_session=False)
-        ActivityLog.query.filter_by(student_id=member.id).delete(synchronize_session=False)
-    else:
-        # Reassign this teacher's courses to the principal rather than leaving them orphaned.
-        Course.query.filter_by(teacher_id=member.id).update({'teacher_id': user.id}, synchronize_session=False)
-
-    GroupMember.query.filter_by(user_id=member.id).delete(synchronize_session=False)
-    Message.query.filter_by(sender_id=member.id).delete(synchronize_session=False)
-    User.query.filter_by(parent_id=member.id).update({'parent_id': None}, synchronize_session=False)
-
     member_name = member.name
-    db.session.delete(member)
-    db.session.commit()
+    member_role = member.role
+    member_id = member.id
 
-    flash(f'{member_name} was removed from {school.name}.', 'success')
+    try:
+        # A removed teacher's courses are handed to the principal instead of
+        # being destroyed; everything else tied to the person is removed.
+        _delete_users([member_id], reassign_to=user.id if member_role == 'teacher' else None)
+        db.session.commit()
+        flash(f'{member_name} was removed from {school.name}.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Principal member removal failed')
+        flash(f'Could not remove {member_name}: {exc}', 'error')
     return redirect(url_for('principal_dashboard', slug=slug, tab=tab))
 
 
@@ -1358,10 +1654,235 @@ def principal_update_branding(slug):
     flash('Branding updated.', 'success')
     return redirect(url_for('principal_dashboard', slug=slug))
 
+
+# ─── PRINCIPAL: APPROVALS + DELETE SCHOOL ──────────────────────────────────
+@app.route('/school/<slug>/approvals')
+def principal_approvals(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
+
+    pending_teachers = User.query.filter_by(school_id=school.id, role='teacher', status='pending') \
+        .order_by(User.created_at).all()
+    pending_resets = PasswordResetRequest.query.filter_by(
+        school_id=school.id, approver_role='principal', status='pending') \
+        .order_by(PasswordResetRequest.created_at).all()
+    return render_template('principal_approvals.html', school=school,
+                           pending_teachers=pending_teachers, pending_resets=pending_resets)
+
+
+@app.route('/school/<slug>/teachers/<int:user_id>/review', methods=['POST'])
+def principal_review_teacher(slug, user_id):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
+
+    teacher = User.query.filter_by(id=user_id, school_id=school.id, role='teacher', status='pending').first_or_404()
+    if request.form.get('action') == 'deny':
+        teacher.status = 'denied'
+        db.session.commit()
+        flash(f'{teacher.name} was denied.', 'info')
+    else:
+        subjects = request.form.get('subjects_taught', '').strip()
+        if subjects:
+            teacher.subjects_taught = subjects
+        # Approved with an empty password: the teacher can now use /setup-password.
+        teacher.status = 'approved'
+        teacher.password = hash_password('')
+        db.session.commit()
+        flash(f'{teacher.name} was approved. They can now set their password from the application status page.', 'success')
+    return redirect(url_for('principal_approvals', slug=slug))
+
+
+@app.route('/school/<slug>/resets/<int:req_id>/review', methods=['POST'])
+def principal_review_reset(slug, req_id):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    if not school_is_active(school):
+        return redirect(url_for('school_pending', slug=school.slug))
+
+    req = PasswordResetRequest.query.filter_by(
+        id=req_id, school_id=school.id, approver_role='principal', status='pending').first_or_404()
+    req.status = 'denied' if request.form.get('action') == 'deny' else 'approved'
+    req.resolved_at = datetime.utcnow()
+    req.resolved_by = user.id
+    db.session.commit()
+    flash('Password reset request ' + req.status + '.', 'success' if req.status == 'approved' else 'info')
+    return redirect(url_for('principal_approvals', slug=slug))
+
+
+@app.route('/school/<slug>/delete', methods=['POST'])
+def principal_delete_school(slug):
+    user = get_current_user()
+    school = School.query.filter_by(slug=slug).first_or_404()
+    if not user or user.role != 'principal' or user.school_id != school.id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.form.get('confirm_name', '').strip() != school.name:
+        flash('Type the exact school name to confirm deletion.', 'error')
+        return redirect(url_for('principal_approvals', slug=slug))
+
+    school_id = school.id
+    try:
+        delete_school_cascade(school_id)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('School deletion failed')
+        flash(f'Could not delete the school: {exc}', 'error')
+        return redirect(url_for('principal_approvals', slug=slug))
+
+    session.clear()
+    flash('Your school and all of its data have been deleted.', 'success')
+    return redirect(url_for('index'))
+
+
+
+# ─── PRINCIPAL: LEARNING STRUCTURE (courses vs classes, subjects, class levels) ─
+@app.route('/school/<slug>/structure')
+def principal_structure(slug):
+    user, school, err = _principal_context(slug)
+    if err:
+        return err
+    subjects = Subject.query.filter_by(school_id=school.id).order_by(Subject.name).all()
+    levels = ClassLevel.query.filter_by(school_id=school.id).order_by(ClassLevel.position, ClassLevel.name).all()
+    subject_usage = {s.id: Course.query.filter_by(subject_id=s.id).count() for s in subjects}
+    level_usage = {l.id: Course.query.filter_by(class_level_id=l.id).count() for l in levels}
+    presets = [(key, label) for key, (label, _names) in CLASS_LEVEL_PRESETS.items()]
+    return render_template('principal_structure.html', school=school, subjects=subjects, levels=levels,
+                           subject_usage=subject_usage, level_usage=level_usage, presets=presets,
+                           uses_classes_mode=school_uses_classes(school))
+
+
+@app.route('/school/<slug>/structure/mode', methods=['POST'])
+def principal_structure_mode(slug):
+    user, school, err = _principal_context(slug)
+    if err:
+        return err
+    mode = request.form.get('learning_mode')
+    if mode not in LEARNING_MODES:
+        flash('Please choose courses or classes.', 'error')
+    else:
+        school.learning_mode = mode
+        db.session.commit()
+        if mode == 'classes':
+            flash('Your school now uses classes. Set up your subjects and class levels below.', 'success')
+        else:
+            flash('Your school now uses courses.', 'success')
+    return redirect(url_for('principal_structure', slug=slug))
+
+
+@app.route('/school/<slug>/structure/subjects/add', methods=['POST'])
+def principal_add_subjects(slug):
+    user, school, err = _principal_context(slug)
+    if err:
+        return err
+    if request.form.get('common') == '1':
+        names = COMMON_SUBJECTS
+    else:
+        names = _split_names(request.form.get('names'))
+    added = _add_subjects(school.id, names)
+    db.session.commit()
+    flash(f'{added} subject(s) added.' if added else 'Nothing new to add — those subjects already exist.',
+          'success' if added else 'info')
+    return redirect(url_for('principal_structure', slug=slug))
+
+
+@app.route('/school/<slug>/structure/levels/add', methods=['POST'])
+def principal_add_levels(slug):
+    user, school, err = _principal_context(slug)
+    if err:
+        return err
+    preset = request.form.get('preset')
+    if preset:
+        if preset not in CLASS_LEVEL_PRESETS:
+            flash('Unknown preset.', 'error')
+            return redirect(url_for('principal_structure', slug=slug))
+        names = CLASS_LEVEL_PRESETS[preset][1]
+    else:
+        names = _split_names(request.form.get('names'))
+    added = _add_class_levels(school.id, names)
+    db.session.commit()
+    flash(f'{added} class level(s) added.' if added else 'Nothing new to add — those levels already exist.',
+          'success' if added else 'info')
+    return redirect(url_for('principal_structure', slug=slug))
+
+
+@app.route('/school/<slug>/structure/<kind>/<int:item_id>/delete', methods=['POST'])
+def principal_structure_delete(slug, kind, item_id):
+    user, school, err = _principal_context(slug)
+    if err:
+        return err
+    if kind == 'subjects':
+        item = Subject.query.filter_by(id=item_id, school_id=school.id).first_or_404()
+        in_use = Course.query.filter_by(subject_id=item.id).count()
+    elif kind == 'levels':
+        item = ClassLevel.query.filter_by(id=item_id, school_id=school.id).first_or_404()
+        in_use = Course.query.filter_by(class_level_id=item.id).count()
+    else:
+        return redirect(url_for('principal_structure', slug=slug))
+    if in_use:
+        flash(f'“{item.name}” is used by {in_use} class(es). Remove those classes first.', 'error')
+    else:
+        name = item.name
+        db.session.delete(item)
+        db.session.commit()
+        flash(f'“{name}” was removed.', 'success')
+    return redirect(url_for('principal_structure', slug=slug))
 # ─── COURSES ────────────────────────────────────────────────────────────────
+def _classes_page(user):
+    """The /courses page for a school that organises learning as classes:
+    subjects, each with its class levels, filterable by level."""
+    school = user.school
+    levels = ClassLevel.query.filter_by(school_id=school.id).order_by(ClassLevel.position, ClassLevel.name).all()
+    active_level = request.args.get('level', type=int)
+
+    query = Course.query.filter(Course.school_id == school.id, Course.subject_id.isnot(None))
+    if active_level:
+        query = query.filter(Course.class_level_id == active_level)
+    by_subject = {}
+    for c in query.all():
+        by_subject.setdefault(c.subject_id, []).append(c)
+
+    subject_map = {s.id: s for s in Subject.query.filter_by(school_id=school.id).all()}
+    blocks = []
+    for subject_id, items in by_subject.items():
+        subject = subject_map.get(subject_id)
+        if not subject:
+            continue
+        items.sort(key=lambda c: ((c.class_level.position if c.class_level else 0), c.title))
+        blocks.append({'subject': subject, 'classes': items})
+    blocks.sort(key=lambda b: b['subject'].name.lower())
+
+    legacy_courses = []
+    if not active_level:
+        legacy_courses = Course.query.filter(Course.school_id == school.id, Course.subject_id.is_(None)).all()
+
+    enrolled_ids = []
+    if user.role == 'student':
+        enrolled_ids = [e.course_id for e in Enrollment.query.filter_by(student_id=user.id).all()]
+    return render_template('classes.html', school=school, levels=levels, active_level=active_level,
+                           blocks=blocks, legacy_courses=legacy_courses, enrolled_ids=enrolled_ids,
+                           has_structure=bool(subject_map and levels))
+
+
 @app.route('/courses')
 def courses():
     user = get_current_user()
+    if user and user.school_id and school_uses_classes(user.school):
+        return _classes_page(user)
     course_query = Course.query
     if user and user.school_id:
         course_query = course_query.filter_by(school_id=user.school_id)
@@ -1377,6 +1898,8 @@ def create_course():
     if not user or user.role != 'teacher':
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
+    if user.school_id and school_uses_classes(user.school):
+        return redirect(url_for('create_class'))
 
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -1406,6 +1929,54 @@ def create_course():
         return redirect(url_for('course_detail', course_id=course.id))
     return render_template('create_course.html')
 
+@app.route('/classes/create', methods=['GET', 'POST'])
+def create_class():
+    """Teachers in a classes school create a class = one subject at one class level."""
+    user = get_current_user()
+    if not user or user.role != 'teacher':
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    school = user.school
+    if not school or not school_uses_classes(school):
+        return redirect(url_for('create_course'))
+
+    subjects = Subject.query.filter_by(school_id=school.id).order_by(Subject.name).all()
+    levels = ClassLevel.query.filter_by(school_id=school.id).order_by(ClassLevel.position, ClassLevel.name).all()
+
+    if request.method == 'POST':
+        subject = Subject.query.filter_by(id=request.form.get('subject_id', type=int), school_id=school.id).first()
+        level = ClassLevel.query.filter_by(id=request.form.get('class_level_id', type=int), school_id=school.id).first()
+        description = request.form.get('description', '').strip()
+        if not subject or not level:
+            flash('Please choose a subject and a class level.', 'error')
+            return render_template('create_class.html', school=school, subjects=subjects, levels=levels)
+        if Course.query.filter_by(teacher_id=user.id, subject_id=subject.id, class_level_id=level.id).first():
+            flash(f'You already teach {subject.name} for {level.name}.', 'error')
+            return render_template('create_class.html', school=school, subjects=subjects, levels=levels)
+
+        thumbnail = None
+        saved_thumbnail = save_uploaded_file(request.files.get('thumbnail_file'), 'thumbnails', ALLOWED_IMAGE_EXTENSIONS)
+        if saved_thumbnail:
+            thumbnail = saved_thumbnail
+
+        title = f'{subject.name} — {level.name}'
+        course = Course(title=title, description=description, teacher_id=user.id,
+                        category=subject.name, level=level.name, thumbnail=thumbnail,
+                        school_id=school.id, subject_id=subject.id, class_level_id=level.id)
+        db.session.add(course)
+        db.session.flush()
+
+        group = Group(name=f'{title} - Class Group', course_id=course.id,
+                      created_by=user.id, group_type='course', school_id=school.id)
+        db.session.add(group)
+        db.session.flush()
+        db.session.add(GroupMember(group_id=group.id, user_id=user.id, role='admin'))
+        db.session.commit()
+        flash(f'{title} was created.', 'success')
+        return redirect(url_for('course_detail', course_id=course.id))
+    return render_template('create_class.html', school=school, subjects=subjects, levels=levels)
+
+
 @app.route('/courses/<int:course_id>')
 def course_detail(course_id):
     user = get_current_user()
@@ -1433,8 +2004,9 @@ def edit_course(course_id):
     if request.method == 'POST':
         course.title = request.form.get('title', '').strip()
         course.description = request.form.get('description', '').strip()
-        course.category = request.form.get('category', '').strip()
-        course.level = request.form.get('level', 'beginner')
+        if not course.class_level_id:   # classes keep their class level as the level
+            course.category = request.form.get('category', '').strip()
+            course.level = request.form.get('level', 'beginner')
         thumbnail = request.form.get('thumbnail', '').strip()
         thumbnail_file = request.files.get('thumbnail_file')
         saved_thumbnail = save_uploaded_file(thumbnail_file, 'thumbnails', ALLOWED_IMAGE_EXTENSIONS)
@@ -1810,6 +2382,45 @@ def leave_group(group_id):
     return redirect(url_for('dashboard'))
 
 
+# ─── FORGOT PASSWORD ────────────────────────────────────────────────────────
+# Students without a school / parents : answer questions -> reset immediately.
+# Principals         : answer 2 questions (email + school web address)
+#                      -> request waits for the PLATFORM ADMIN to approve.
+# Teachers           : answer 3 questions (name, email, subjects taught)
+#                      -> request waits for the SCHOOL PRINCIPAL to approve.
+# Students in a school: answer 3 questions (name, email, a subject they are learning)
+#                      -> request waits for the SCHOOL PRINCIPAL to approve.
+# Admins             : cannot self-reset here.
+MAX_RESET_ATTEMPTS = 5
+RESET_LINK_HOURS = 24
+
+
+def _reset_questions_for(role, school_student=False):
+    if role == 'principal':
+        return [
+            {'key': 'email', 'label': 'Your email address', 'type': 'email'},
+            {'key': 'school_slug', 'label': 'Your school web address (e.g. greenwood-high)', 'type': 'text'},
+        ]
+    if role == 'teacher':
+        return [
+            {'key': 'full_name', 'label': 'Your full name', 'type': 'text'},
+            {'key': 'email', 'label': 'Your email address', 'type': 'email'},
+            {'key': 'subjects_taught', 'label': 'Subjects you teach (comma separated)', 'type': 'text'},
+        ]
+    if role == 'student' and school_student:
+        return [
+            {'key': 'full_name', 'label': 'Your full name', 'type': 'text'},
+            {'key': 'email', 'label': 'Your email address', 'type': 'email'},
+            {'key': 'subject', 'label': 'A subject you are learning', 'type': 'text'},
+        ]
+    return [
+        {'key': 'email', 'label': 'Email', 'type': 'email'},
+        {'key': 'date_of_birth', 'label': 'Date of birth', 'type': 'date'},
+        {'key': 'previous_school', 'label': 'Former school', 'type': 'text'},
+        {'key': 'courses_interest', 'label': 'Courses of interest', 'type': 'text'},
+    ]
+
+
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'GET':
@@ -1820,152 +2431,203 @@ def forgot_password():
         return render_template('forgot_password.html')
     user = User.query.filter_by(email=email).first()
     if not user:
-        flash('If an account with that email exists, you will receive instructions.', 'info')
+        flash('If an account with that email exists, you will be asked a few security questions.', 'info')
         return render_template('forgot_password.html')
-    # prepare questions based on role
+
     role = user.role or 'student'
-    questions = []
-    if role == 'student' or role == 'parent':
-        questions = [
-            {'key': 'email', 'label': 'Email'},
-            {'key': 'date_of_birth', 'label': 'Date of birth (YYYY-MM-DD)'},
-            {'key': 'previous_school', 'label': 'Former school'},
-            {'key': 'courses_interest', 'label': 'Courses of interest'},
-        ]
-    elif role == 'teacher':
-        # Teachers are added directly by their principal (not self-registered), so
-        # verification uses the identity details the principal entered for them
-        # at that time, rather than course/enrollment data.
-        questions = [
-            {'key': 'email', 'label': 'Email'},
-            {'key': 'full_name', 'label': 'Full name, as registered by your principal'},
-            {'key': 'date_of_birth', 'label': 'Date of birth (YYYY-MM-DD)'},
-            {'key': 'origin', 'label': 'Place of origin, as registered by your principal'},
-            {'key': 'subjects_taught', 'label': 'Subjects you teach, as registered by your principal'},
-        ]
-    else:
-        # admin or other roles: ask basic checks
-        questions = [
-            {'key': 'email', 'label': 'Email'},
-            {'key': 'date_of_birth', 'label': 'Date of birth (YYYY-MM-DD)'},
-            {'key': 'previous_school', 'label': 'Former school'},
-        ]
-    return render_template('forgot_password_questions.html', user_id=user.id, role=role, questions=questions)
+    if role == 'admin':
+        flash('Administrator passwords cannot be reset here. Please contact the platform owner.', 'error')
+        return render_template('forgot_password.html')
+    if user.status != 'approved' or user.password == hash_password(''):
+        flash('This account has not been approved yet or has no password to reset. Check your application status.', 'info')
+        return redirect(url_for('application_status', email=email))
+
+    # Remember WHO is being verified on the server, not in a form field the
+    # visitor can change.
+    session['fp_user_id'] = user.id
+    session.pop('fp_verified_user_id', None)
+    school_student = role == 'student' and bool(user.school_id)
+    return render_template('forgot_password_questions.html', role=role, school_student=school_student,
+                           questions=_reset_questions_for(role, school_student))
 
 
 @app.route('/forgot-password/verify', methods=['POST'])
 def forgot_password_verify():
-    user_id = request.form.get('user_id')
-    if not user_id:
-        flash('Invalid request.', 'error')
+    attempts = session.get('fp_attempts', 0)
+    if attempts >= MAX_RESET_ATTEMPTS:
+        flash('Too many failed attempts. Please try again later.', 'error')
         return redirect(url_for('forgot_password'))
-    user = User.query.filter_by(id=int(user_id)).first()
+
+    user_id = session.get('fp_user_id')
+    user = db.session.get(User, user_id) if user_id else None
     if not user:
-        flash('Invalid request.', 'error')
+        flash('Please start again.', 'error')
         return redirect(url_for('forgot_password'))
     role = user.role or 'student'
-    # verify answers against authoritative records
-    # email is always included and must match
-    email_input = (request.form.get('email') or '').strip().lower()
-    if email_input != (user.email or '').lower():
+
+    def fail():
+        session['fp_attempts'] = attempts + 1
         flash('Answers did not match our records.', 'error')
         return redirect(url_for('forgot_password'))
 
-    # date of birth check
-    dob_input = request.form.get('date_of_birth')
-    dob = parse_date_input(dob_input)
-    if user.date_of_birth:
-        if not dob or user.date_of_birth != dob:
-            flash('Answers did not match our records.', 'error')
-            return redirect(url_for('forgot_password'))
+    if role == 'admin':
+        return fail()
 
-    # role-specific authoritative checks
-    if role in ('student', 'parent'):
-        # previous school must match stored value if present
+    email_input = (request.form.get('email') or '').strip().lower()
+    if email_input != (user.email or '').lower():
+        return fail()
+
+    if role == 'principal':
+        slug_input = (request.form.get('school_slug') or '').strip().lower()
+        if not user.school or user.school.status != 'approved' or user.school.slug != slug_input:
+            return fail()
+
+    elif role == 'teacher':
+        if not user.school or user.school.status != 'approved':
+            return fail()
+        if _norm(request.form.get('full_name')) != _norm(user.name):
+            return fail()
+        entered = _subject_set(request.form.get('subjects_taught'))
+        stored = _subject_set(user.subjects_taught)
+        if not entered or entered != stored:
+            return fail()
+
+    elif role == 'student' and user.school_id:
+        # A student who belongs to a school: the principal approves, after the
+        # system has checked the answers against what it has on record.
+        if not user.school or user.school.status != 'approved':
+            return fail()
+        if _norm(request.form.get('full_name')) != _norm(user.name):
+            return fail()
+        if not _student_subject_matches(user, request.form.get('subject')):
+            return fail()
+
+    elif role in ('student', 'parent'):
+        dob = parse_date_input(request.form.get('date_of_birth'))
+        if user.date_of_birth:
+            if not dob or user.date_of_birth != dob:
+                return fail()
+
         prev_input = (request.form.get('previous_school') or '').strip().lower()
         stored_prev = (user.previous_school or '').strip().lower()
         if stored_prev:
             if not prev_input or prev_input != stored_prev:
-                flash('Answers did not match our records.', 'error')
-                return redirect(url_for('forgot_password'))
+                return fail()
 
-        # courses of interest: check against enrollments and stored courses_interest
         ci_input = (request.form.get('courses_interest') or '').strip().lower()
         matched_course = False
-        # check explicit enrollments for the user
-        enrolls = Enrollment.query.filter_by(student_id=user.id).all()
-        for en in enrolls:
+        for en in Enrollment.query.filter_by(student_id=user.id).all():
             if en.course and ci_input and ci_input in (en.course.title or '').lower():
                 matched_course = True
                 break
-        # also check stored free-text courses_interest
         stored_ci = (user.courses_interest or '').strip().lower()
         if not matched_course and stored_ci and ci_input:
             if ci_input in stored_ci or stored_ci in ci_input:
                 matched_course = True
         if stored_ci and not matched_course:
-            flash('Answers did not match our records.', 'error')
-            return redirect(url_for('forgot_password'))
-
-    elif role == 'teacher':
-        # Verify against the identity details the principal entered when adding
-        # this teacher: full name, place of origin, and subjects taught.
-        name_input = (request.form.get('full_name') or '').strip().lower()
-        stored_name = (user.name or '').strip().lower()
-        if not name_input or name_input != stored_name:
-            flash('Answers did not match our records.', 'error')
-            return redirect(url_for('forgot_password'))
-
-        origin_input = (request.form.get('origin') or '').strip().lower()
-        stored_origin = (user.origin or '').strip().lower()
-        if stored_origin:
-            if not origin_input or origin_input != stored_origin:
-                flash('Answers did not match our records.', 'error')
-                return redirect(url_for('forgot_password'))
-
-        subjects_input = (request.form.get('subjects_taught') or '').strip().lower()
-        stored_subjects = (user.subjects_taught or '').strip().lower()
-        if stored_subjects:
-            if not subjects_input or (subjects_input not in stored_subjects and stored_subjects not in subjects_input):
-                flash('Answers did not match our records.', 'error')
-                return redirect(url_for('forgot_password'))
-
+            return fail()
     else:
-        # fallback checks for admin/other
-        prev_input = (request.form.get('previous_school') or '').strip().lower()
-        stored_prev = (user.previous_school or '').strip().lower()
-        if stored_prev and prev_input != stored_prev:
-            flash('Answers did not match our records.', 'error')
-            return redirect(url_for('forgot_password'))
+        return fail()
 
-    # passed verification — render reset form
-    return render_template('reset_password.html', user_id=user.id)
+    # ── verification passed ──
+    session.pop('fp_attempts', None)
+    session.pop('fp_user_id', None)
+
+    if role in ('principal', 'teacher') or (role == 'student' and user.school_id):
+        # Principals are approved by the platform admin; teachers and school
+        # students by their school principal.
+        # Re-use a still-open request so repeated attempts don't pile up.
+        cutoff = datetime.utcnow() - timedelta(hours=RESET_LINK_HOURS)
+        open_reqs = PasswordResetRequest.query.filter(
+            PasswordResetRequest.user_id == user.id,
+            PasswordResetRequest.status.in_(['pending', 'approved'])
+        ).all()
+        req = None
+        for r in open_reqs:
+            if r.status == 'approved' and r.resolved_at and r.resolved_at < cutoff:
+                r.status = 'expired'
+            elif req is None:
+                req = r
+        if req is None:
+            req = PasswordResetRequest(
+                user_id=user.id,
+                school_id=user.school_id,
+                approver_role='admin' if role == 'principal' else 'principal',
+                token=secrets.token_urlsafe(32),
+                status='pending',
+            )
+            db.session.add(req)
+        db.session.commit()
+        return redirect(url_for('reset_status', token=req.token))
+
+    # students / parents: allowed to choose a new password right away,
+    # but only from this verified browser session.
+    session['fp_verified_user_id'] = user.id
+    return render_template('reset_password.html')
 
 
 @app.route('/forgot-password/reset', methods=['POST'])
 def forgot_password_reset():
-    user_id = request.form.get('user_id')
+    # Only a student/parent who just passed verification in THIS session may use
+    # this endpoint. (It used to accept any user_id, which let anyone reset any
+    # account's password, including admins.)
+    verified_id = session.get('fp_verified_user_id')
+    user = db.session.get(User, verified_id) if verified_id else None
+    if not user or user.role not in ('student', 'parent'):
+        flash('Please verify your identity first.', 'error')
+        return redirect(url_for('forgot_password'))
+
     password = request.form.get('password')
     password_confirm = request.form.get('password_confirm')
-    if not user_id or not password:
+    if not password:
         flash('Invalid request.', 'error')
-        return redirect(url_for('forgot_password'))
+        return render_template('reset_password.html')
     if password != password_confirm:
         flash('Passwords do not match.', 'error')
-        return render_template('reset_password.html', user_id=user_id)
+        return render_template('reset_password.html')
     if not password_meets_policy(password):
         flash('Password must be at least 8 characters, include an uppercase letter and a special character.', 'error')
-        return render_template('reset_password.html', user_id=user_id)
-    user = User.query.filter_by(id=int(user_id)).first()
-    if not user:
-        flash('Invalid user.', 'error')
-        return redirect(url_for('forgot_password'))
+        return render_template('reset_password.html')
+
     user.password = hash_password(password)
     user.password_reset_token = None
     user.token_expiry = None
     db.session.commit()
+    session.pop('fp_verified_user_id', None)
     flash('Your password has been reset. You can now log in.', 'success')
     return redirect(url_for('login'))
+
+
+@app.route('/reset-status/<token>', methods=['GET', 'POST'])
+def reset_status(token):
+    """Private page for a principal/teacher reset request. The token is only
+    known to the person who passed the security questions."""
+    req = PasswordResetRequest.query.filter_by(token=token).first()
+    if not req:
+        flash('That reset link is not valid.', 'error')
+        return redirect(url_for('login'))
+
+    if req.status == 'approved' and req.resolved_at and \
+            req.resolved_at < datetime.utcnow() - timedelta(hours=RESET_LINK_HOURS):
+        req.status = 'expired'
+        db.session.commit()
+
+    if request.method == 'POST' and req.status == 'approved':
+        password = request.form.get('password', '')
+        confirm = request.form.get('password_confirm', '')
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+        elif not password_meets_policy(password):
+            flash('Password must be at least 8 characters, include an uppercase letter and a special character.', 'error')
+        else:
+            req.user.password = hash_password(password)
+            req.status = 'used'
+            db.session.commit()
+            flash('Your password has been changed. You can log in now.', 'success')
+            return redirect(url_for('login'))
+
+    approver_label = 'the platform admin' if req.approver_role == 'admin' else 'your school principal'
+    return render_template('reset_status.html', req=req, approver_label=approver_label)
 
 @app.route('/groups/<int:group_id>/message', methods=['POST'])
 def send_message(group_id):
@@ -2529,6 +3191,13 @@ def review_user(user_id):
     applicant = User.query.get_or_404(user_id)
     action = request.form.get('action', 'approve')
 
+    # Teachers who applied to a school are approved by THAT school's principal,
+    # not by the platform admin.
+    if applicant.role == 'teacher' and applicant.school_id and applicant.status == 'pending':
+        flash(f'{applicant.name} applied to {applicant.school.name if applicant.school else "a school"}. '
+              'Their principal must approve this application.', 'error')
+        return redirect(url_for('admin_users'))
+
     if action == 'deny':
         applicant.status = 'denied'
         applicant.password = hash_password('')
@@ -2617,8 +3286,17 @@ def admin_schools():
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     schools_list = School.query.order_by(School.created_at.desc()).all()
-    pending_count = sum(1 for s in schools_list if s.status == 'pending')
-    return render_template('admin_schools.html', schools=schools_list, pending_count=pending_count)
+    pending_schools = [s for s in schools_list if s.status == 'pending']
+    approved_list = [s for s in schools_list if s.status == 'approved']
+    denied_schools = [s for s in schools_list if s.status == 'denied']
+    pending_resets = PasswordResetRequest.query.filter_by(approver_role='admin', status='pending') \
+        .order_by(PasswordResetRequest.created_at).all()
+    return render_template('admin_schools.html', schools=schools_list,
+                           pending_count=len(pending_schools),
+                           pending_schools=pending_schools,
+                           approved_schools=approved_list,
+                           denied_schools=denied_schools,
+                           pending_resets=pending_resets)
 
 
 @app.route('/admin/schools/<int:school_id>/review', methods=['POST'])
@@ -2640,6 +3318,46 @@ def review_school(school_id):
         db.session.commit()
         flash(f'{school.name} was approved and is now live on the platform.', 'success')
 
+    return redirect(url_for('admin_schools'))
+
+
+@app.route('/admin/schools/<int:school_id>/delete', methods=['POST'])
+def admin_delete_school(school_id):
+    user = get_current_user()
+    if not user or user.role != 'admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    school = School.query.get_or_404(school_id)
+    if request.form.get('confirm_name', '').strip() != school.name:
+        flash('Type the exact school name to confirm deletion.', 'error')
+        return redirect(url_for('admin_schools'))
+
+    school_name = school.name
+    try:
+        delete_school_cascade(school_id)
+        db.session.commit()
+        flash(f'{school_name} and all of its data were deleted.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('School deletion failed')
+        flash(f'Could not delete {school_name}: {exc}', 'error')
+    return redirect(url_for('admin_schools'))
+
+
+@app.route('/admin/resets/<int:req_id>/review', methods=['POST'])
+def admin_review_reset(req_id):
+    user = get_current_user()
+    if not user or user.role != 'admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
+    req = PasswordResetRequest.query.filter_by(id=req_id, approver_role='admin', status='pending').first_or_404()
+    req.status = 'denied' if request.form.get('action') == 'deny' else 'approved'
+    req.resolved_at = datetime.utcnow()
+    req.resolved_by = user.id
+    db.session.commit()
+    flash('Password reset request ' + req.status + '.', 'success' if req.status == 'approved' else 'info')
     return redirect(url_for('admin_schools'))
 
 
@@ -2754,8 +3472,12 @@ def admin_applications():
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Get all applications (students, teachers, parents with pending/approved/denied status)
-    applications = User.query.filter(User.role.in_(['student', 'teacher', 'parent'])).order_by(User.created_at.desc()).all()
+    # Get all applications (students, teachers, parents with pending/approved/denied status).
+    # Teachers that belong to a school are handled by that school's principal,
+    # so they are not part of the platform admin's queue.
+    applications = User.query.filter(User.role.in_(['student', 'teacher', 'parent'])) \
+        .filter(db.or_(User.role != 'teacher', User.school_id.is_(None))) \
+        .order_by(User.created_at.desc()).all()
     
     return render_template('admin_applications.html', applications=applications)
 
