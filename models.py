@@ -11,11 +11,39 @@ class School(db.Model):
     logo = db.Column(db.String(300), nullable=True)
     primary_color = db.Column(db.String(20), nullable=True, default='#2563EB')
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending/approved/denied — set by the platform admin
+    learning_mode = db.Column(db.String(20), nullable=False, default='courses')  # courses / classes (subjects with class levels)
     principal_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     principal = db.relationship('User', foreign_keys=[principal_id])
     members = db.relationship('User', backref='school', lazy=True, foreign_keys='User.school_id')
+
+class ClassLevel(db.Model):
+    """A level a school teaches at, e.g. 'Primary 5', 'S.2', 'Form 3', 'Grade 9'."""
+    __tablename__ = 'class_levels'
+    id = db.Column(db.Integer, primary_key=True)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=False)
+    name = db.Column(db.String(60), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)  # display order, lowest level first
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('school_id', 'name', name='uq_class_levels_school_name'),
+    )
+
+
+class Subject(db.Model):
+    """A subject a school teaches, e.g. 'Mathematics'. Taught at one or more class levels."""
+    __tablename__ = 'subjects'
+    id = db.Column(db.Integer, primary_key=True)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('school_id', 'name', name='uq_subjects_school_name'),
+    )
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -30,8 +58,8 @@ class User(db.Model):
     previous_school = db.Column(db.String(200), nullable=True)
     courses_interest = db.Column(db.Text, nullable=True)
     cv_path = db.Column(db.String(300), nullable=True)
-    origin = db.Column(db.String(200), nullable=True)  # teacher's place of origin — set by the principal, used for password-recovery verification
-    subjects_taught = db.Column(db.Text, nullable=True)  # teacher's subjects — set by the principal, used for password-recovery verification
+    origin = db.Column(db.String(200), nullable=True)  # teacher's place of origin — set by the principal
+    subjects_taught = db.Column(db.Text, nullable=True)  # teacher's subjects — used for password-recovery verification
     parent_name = db.Column(db.String(100), nullable=True)
     parent_email = db.Column(db.String(150), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -49,6 +77,25 @@ class User(db.Model):
     activity_logs = db.relationship('ActivityLog', backref='student', lazy=True, foreign_keys='ActivityLog.student_id')
     deleted_message_views = db.relationship('MessageVisibility', backref='user', lazy=True, foreign_keys='MessageVisibility.user_id')
     notifications = db.relationship('Notification', backref='user', lazy=True, cascade='all, delete-orphan', foreign_keys='Notification.user_id')
+
+class PasswordResetRequest(db.Model):
+    """A forgotten-password request that must be approved before the password can change.
+
+    principal -> approver_role='admin'      (the overall platform admin approves)
+    teacher   -> approver_role='principal'  (the teacher's school principal approves)
+    """
+    __tablename__ = 'password_reset_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
+    approver_role = db.Column(db.String(20), nullable=False)               # admin / principal
+    token = db.Column(db.String(100), unique=True, nullable=False)        # secret; only the requester has it
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending/approved/denied/used/expired
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    user = db.relationship('User', foreign_keys=[user_id])
 
 class Notification(db.Model):
     __tablename__ = 'notifications'
@@ -111,12 +158,17 @@ class Course(db.Model):
     description = db.Column(db.Text, nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     school_id = db.Column(db.Integer, db.ForeignKey('schools.id'), nullable=True)
+    # Only set for schools that organise learning as classes (subject + class level).
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=True)
+    class_level_id = db.Column(db.Integer, db.ForeignKey('class_levels.id'), nullable=True)
     category = db.Column(db.String(100), nullable=True)
     level = db.Column(db.String(50), default='beginner')
     thumbnail = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     school = db.relationship('School', foreign_keys=[school_id])
+    subject = db.relationship('Subject', foreign_keys=[subject_id])
+    class_level = db.relationship('ClassLevel', foreign_keys=[class_level_id])
     enrollments = db.relationship('Enrollment', backref='course', lazy=True)
     contents = db.relationship('CourseContent', backref='course', lazy=True)
     groups = db.relationship('Group', backref='course', lazy=True)
