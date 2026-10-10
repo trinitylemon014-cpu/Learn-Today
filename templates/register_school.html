@@ -12,7 +12,7 @@
         </div>
         <div style="margin-bottom:32px">
           <h2 style="font-size:28px;margin-bottom:8px;color:var(--navy)">Bring Your School Online</h2>
-          <p class="subtitle" style="color:var(--gray-600);font-size:15px">Register your school and become its principal — the only account that can add teachers and students</p>
+          <p class="subtitle" style="color:var(--gray-600);font-size:15px">Register your school and become its principal — the only account that can add teachers and students. Your school goes live once the platform admin approves it.</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -32,6 +32,36 @@
             <input type="text" name="school_slug" id="schoolSlug" class="form-control" placeholder="greenwood-high"
                    pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only" required>
             <div class="form-hint">Your school's unique link: learntogether.app/school/<span id="slugPreview">your-school</span></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">How does your school organise learning?</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <label id="modeCourses" style="display:block;cursor:pointer;border:2px solid var(--blue);border-radius:12px;padding:14px">
+                <input type="radio" name="learning_mode" value="courses" checked style="margin-right:6px">
+                <strong>Courses</strong>
+                <div style="font-size:13px;color:var(--gray-600);margin-top:4px">Teachers create courses with their own titles and content.</div>
+              </label>
+              <label id="modeClasses" style="display:block;cursor:pointer;border:2px solid var(--gray-200,#e5e7eb);border-radius:12px;padding:14px">
+                <input type="radio" name="learning_mode" value="classes" style="margin-right:6px">
+                <strong>Classes</strong>
+                <div style="font-size:13px;color:var(--gray-600);margin-top:4px">Subjects taught at class levels, e.g. Mathematics for S.2.</div>
+              </label>
+            </div>
+            <div class="form-hint">You can change this later from your school settings.</div>
+          </div>
+
+          <div class="form-group" id="levelPresetGroup" style="display:none">
+            <label class="form-label">Class levels</label>
+            <select name="class_level_preset" class="form-control">
+              <option value="">I'll set up my class levels later</option>
+              <option value="primary_1_7">Primary 1 – 7</option>
+              <option value="secondary_1_6">Secondary S.1 – S.6</option>
+              <option value="p1_s6">Primary P.1–P.7 and Secondary S.1–S.6</option>
+              <option value="grade_1_12">Grade 1 – 12</option>
+              <option value="form_1_6">Form 1 – 6</option>
+            </select>
+            <div class="form-hint">A quick start. You can add, rename or remove levels and add your subjects once approved.</div>
           </div>
 
           <div class="form-group">
@@ -55,7 +85,7 @@
           </div>
 
           <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:12px;font-weight:600">
-            Create My School's Platform
+            Submit My School for Approval
           </button>
         </form>
 
@@ -84,5 +114,18 @@
     const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
     slugPreview.textContent = clean || 'your-school';
   });
+
+  const radios = document.querySelectorAll('input[name="learning_mode"]');
+  const presetGroup = document.getElementById('levelPresetGroup');
+  const cardCourses = document.getElementById('modeCourses');
+  const cardClasses = document.getElementById('modeClasses');
+  function syncMode() {
+    const classes = document.querySelector('input[name="learning_mode"]:checked').value === 'classes';
+    presetGroup.style.display = classes ? 'block' : 'none';
+    cardClasses.style.borderColor = classes ? 'var(--blue)' : 'var(--gray-200,#e5e7eb)';
+    cardCourses.style.borderColor = classes ? 'var(--gray-200,#e5e7eb)' : 'var(--blue)';
+  }
+  radios.forEach(r => r.addEventListener('change', syncMode));
+  syncMode();
 </script>
 {% endblock %}
