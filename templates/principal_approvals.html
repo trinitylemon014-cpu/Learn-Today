@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{# This page uses {% block content %}. If your logged-in pages use a different block name in base.html, rename it here. #}
+{% block title %}Approvals — {{ school.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Approvals &amp; settings</h1>
+  <p><a href="{{ url_for('principal_dashboard', slug=school.slug) }}">← Back to {{ school.name }}</a></p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="card" style="margin-bottom:24px;padding:20px">
+  <h3>Teacher applications ({{ pending_teachers|length }})</h3>
+  <p style="color:var(--gray-500);font-size:14px">A teacher can only set a password after you approve them.</p>
+  {% for t in pending_teachers %}
+    <div style="padding:12px 0;border-top:1px solid var(--gray-200,#e5e7eb)">
+      <strong>{{ t.name }}</strong> ({{ t.email }})
+      {% if t.cv_path and media_url(t.cv_path) %} · <a href="{{ media_url(t.cv_path) }}" target="_blank" rel="noopener">View CV</a>{% endif %}
+      <form method="POST" action="{{ url_for('principal_review_teacher', slug=school.slug, user_id=t.id) }}"
+            style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input type="text" name="subjects_taught" class="form-control" style="max-width:320px"
+               value="{{ t.subjects_taught or '' }}" placeholder="Subjects taught">
+        <button name="action" value="approve" class="btn btn-primary">Approve</button>
+        <button name="action" value="deny" class="btn btn-outline" onclick="return confirm('Deny this application?')">Deny</button>
+      </form>
+    </div>
+  {% else %}
+    <p style="color:var(--gray-500)">No applications waiting.</p>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-bottom:24px;padding:20px">
+  <h3>Password reset requests ({{ pending_resets|length }})</h3>
+  <p style="color:var(--gray-500);font-size:14px">These teachers and students answered their security questions correctly. Only approve if you know they asked.</p>
+  {% for r in pending_resets %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--gray-200,#e5e7eb)">
+      <div><strong>{{ r.user.name }}</strong> ({{ r.user.email }}) <span style="background:var(--gray-100,#f3f4f6);border-radius:6px;padding:1px 8px;font-size:12px;text-transform:capitalize">{{ r.user.role }}</span><br>Requested {{ r.created_at.strftime('%d %b %Y %H:%M') }} UTC</div>
+      <form method="POST" action="{{ url_for('principal_review_reset', slug=school.slug, req_id=r.id) }}" style="display:flex;gap:8px">
+        <button name="action" value="approve" class="btn btn-primary">Approve</button>
+        <button name="action" value="deny" class="btn btn-outline">Deny</button>
+      </form>
+    </div>
+  {% else %}
+    <p style="color:var(--gray-500)">No requests waiting.</p>
+  {% endfor %}
+</div>
+
+<div class="card" style="padding:20px;border:1px solid #b91c1c">
+  <h3 style="color:#b91c1c">Delete this school</h3>
+  <p>This permanently removes <strong>{{ school.name }}</strong>: every teacher, student, course, group and message. You will be logged out. This cannot be undone.</p>
+  <form method="POST" action="{{ url_for('principal_delete_school', slug=school.slug) }}" style="display:flex;gap:8px;flex-wrap:wrap"
+        onsubmit="return confirm('Delete {{ school.name|e }} permanently?')">
+    <input type="text" name="confirm_name" class="form-control" style="max-width:360px"
+           placeholder="Type “{{ school.name }}” to confirm" required>
+    <button class="btn btn-outline" style="color:#b91c1c;border-color:#b91c1c">Delete school</button>
+  </form>
+</div>
+{% endblock %}
