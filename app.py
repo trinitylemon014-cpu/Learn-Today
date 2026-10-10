@@ -2036,25 +2036,16 @@ def delete_course(course_id):
         flash('Access denied.', 'error')
         return redirect(url_for('course_detail', course_id=course.id))
 
-    delete_supabase_file(course.thumbnail)
-
-    course_groups = Group.query.filter_by(course_id=course.id).all()
-    group_ids = [g.id for g in course_groups]
-
-    if group_ids:
-        Message.query.filter(Message.group_id.in_(group_ids)).delete(synchronize_session=False)
-        GroupMember.query.filter(GroupMember.group_id.in_(group_ids)).delete(synchronize_session=False)
-
-    Group.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    CourseContent.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    Enrollment.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    Progress.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    ActivityLog.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    Attendance.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-    AttendanceSession.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-
-    db.session.delete(course)
-    db.session.commit()
+    try:
+        # Removes the course and everything attached to it (groups, messages,
+        # lessons, attendance, progress, content files...).
+        _delete_courses([course.id])
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Course deletion failed')
+        flash(f'Could not delete the course: {exc}', 'error')
+        return redirect(url_for('course_detail', course_id=course_id))
 
     flash('Course deleted successfully.', 'success')
     return redirect(url_for('courses'))
@@ -3257,26 +3248,39 @@ def delete_user(user_id):
         flash('You cannot delete your own account.', 'error')
         return redirect(url_for('admin_users'))
 
-    backup_owner = User.query.filter_by(role='admin').filter(User.id != u.id).first()
-    fallback_owner_id = backup_owner.id if backup_owner else user.id
-
-    if u.role == 'student':
-        Enrollment.query.filter_by(student_id=u.id).delete(synchronize_session=False)
-        Progress.query.filter_by(student_id=u.id).delete(synchronize_session=False)
-        Attendance.query.filter_by(student_id=u.id).delete(synchronize_session=False)
-        ActivityLog.query.filter_by(student_id=u.id).delete(synchronize_session=False)
-        GroupMember.query.filter_by(user_id=u.id).delete(synchronize_session=False)
-        Message.query.filter_by(sender_id=u.id).delete(synchronize_session=False)
-    else:
-        Course.query.filter_by(teacher_id=u.id).update({'teacher_id': fallback_owner_id}, synchronize_session=False)
-        Group.query.filter_by(created_by=u.id).update({'created_by': fallback_owner_id}, synchronize_session=False)
-        GroupMember.query.filter_by(user_id=u.id).delete(synchronize_session=False)
-        Message.query.filter_by(sender_id=u.id).delete(synchronize_session=False)
-
-    User.query.filter_by(parent_id=u.id).update({'parent_id': None}, synchronize_session=False)
-    db.session.delete(u)
-    db.session.commit()
-    flash('User deleted.', 'success')
+    name, role, school_id = u.name, u.role, u.school_id
+    try:
+        if role == 'principal' and school_id:
+            # Deleting a school principal deletes their whole school: every
+            # teacher, student, class/course, group and message in it.
+            school = db.session.get(School, school_id)
+            school_name = school.name if school else 'the school'
+            account_count = User.query.filter_by(school_id=school_id).count()
+            delete_school_cascade(school_id)
+            db.session.commit()
+            flash(f'{name} (principal) was deleted together with "{school_name}" and its '
+                  f'{account_count} account(s), classes, courses and messages.', 'success')
+        else:
+            # What happens to work the person owned:
+            #   school teacher -> handed to their principal
+            #   other teacher / another admin -> handed to the admin doing the deleting
+            reassign_to = None
+            if role == 'teacher':
+                school = db.session.get(School, school_id) if school_id else None
+                if school and school.principal_id and school.principal_id != u.id:
+                    reassign_to = school.principal_id
+                else:
+                    reassign_to = user.id
+            elif role == 'admin':
+                reassign_to = user.id
+                SiteMedia.query.filter_by(uploaded_by=u.id).update({'uploaded_by': user.id}, synchronize_session=False)
+            _delete_users([u.id], reassign_to=reassign_to)
+            db.session.commit()
+            flash(f'{name} was deleted.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Admin user deletion failed')
+        flash(f'Could not delete {name}: {exc}', 'error')
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/schools')
