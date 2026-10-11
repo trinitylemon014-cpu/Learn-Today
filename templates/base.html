@@ -381,7 +381,7 @@
           try {
             const t = document.createElement('div');
             t.className = 'lt-toast';
-            t.innerHTML = `<strong>New message</strong><div class=\"lt-toast-body\">${(newRow.title||'').replace(/</g,'&lt;')}</div><div class=\"lt-toast-actions\"><a href=\"${newRow.link || '/notifications'}\">Open</a></div>`;
+            t.innerHTML = `<strong>New notification</strong><div class=\"lt-toast-body\">${(newRow.title||'').replace(/</g,'&lt;')}</div><div class=\"lt-toast-actions\"><a href=\"${newRow.link || '/notifications'}\">Open</a></div>`;
             document.body.appendChild(t);
             setTimeout(()=>{ t.classList.add('visible'); }, 50);
             setTimeout(()=>{ t.classList.remove('visible'); setTimeout(()=>t.remove(),300); }, 8000);
