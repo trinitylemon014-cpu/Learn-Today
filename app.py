@@ -948,16 +948,29 @@ def _delete_courses(course_ids):
     Course.query.filter(Course.id.in_(course_ids)).delete(synchronize_session=False)
 
 
-def _delete_users(user_ids, reassign_to=None):
+def _delete_users(user_ids, reassign_to=None, cascade_schools=True):
     """Delete users and every row that points at them. Caller commits.
 
     If reassign_to is given, courses / groups / lessons / attendance sessions
     owned by the deleted users are handed to that user instead of deleted
     (used when a principal removes a teacher).
+
+    cascade_schools: a school cannot exist without its principal, so deleting a
+    principal deletes their whole school (teachers, students, classes, groups,
+    messages...). This is enforced here so it holds for every code path.
     """
     user_ids = list(user_ids)
     if not user_ids:
         return
+    if cascade_schools:
+        school_ids = {r[0] for r in db.session.query(School.id).filter(School.principal_id.in_(user_ids)).all()}
+        school_ids |= {r[0] for r in db.session.query(User.school_id)
+                       .filter(User.id.in_(user_ids), User.role == 'principal', User.school_id.isnot(None)).all()}
+        for sid in school_ids:
+            delete_school_cascade(sid)
+        user_ids = [r[0] for r in db.session.query(User.id).filter(User.id.in_(user_ids)).all()]
+        if not user_ids:
+            return
     if reassign_to:
         Course.query.filter(Course.teacher_id.in_(user_ids)).update({'teacher_id': reassign_to}, synchronize_session=False)
         Group.query.filter(Group.created_by.in_(user_ids)).update({'created_by': reassign_to}, synchronize_session=False)
@@ -1007,7 +1020,7 @@ def delete_school_cascade(school_id):
         AttendanceSession.query.filter(AttendanceSession.id.in_(sess_ids)).delete(synchronize_session=False)
     ScheduledLesson.query.filter(ScheduledLesson.school_id == school_id).delete(synchronize_session=False)
     PasswordResetRequest.query.filter(PasswordResetRequest.school_id == school_id).delete(synchronize_session=False)
-    _delete_users(user_ids)
+    _delete_users(user_ids, cascade_schools=False)
     Subject.query.filter(Subject.school_id == school_id).delete(synchronize_session=False)
     ClassLevel.query.filter(ClassLevel.school_id == school_id).delete(synchronize_session=False)
     School.query.filter(School.id == school_id).delete(synchronize_session=False)
@@ -1242,7 +1255,6 @@ def register():
 def register_school():
     if request.method == 'POST':
         school_name = request.form.get('school_name', '').strip()
-        requested_slug = request.form.get('school_slug', '').strip().lower()
         principal_name = request.form.get('principal_name', '').strip()
         principal_email = request.form.get('principal_email', '').strip().lower()
         learning_mode = request.form.get('learning_mode', 'courses')
@@ -1252,12 +1264,8 @@ def register_school():
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        if not school_name or not requested_slug or not principal_name or not principal_email:
+        if not school_name or not principal_name or not principal_email:
             flash('Please fill in all required fields.', 'error')
-            return render_template('register_school.html')
-
-        if not re.match(r'^[a-z0-9\-]+$', requested_slug):
-            flash('School web address can only contain lowercase letters, numbers, and hyphens.', 'error')
             return render_template('register_school.html')
 
         if password != confirm_password:
@@ -1268,13 +1276,13 @@ def register_school():
             flash('Password must be at least 8 characters long.', 'error')
             return render_template('register_school.html')
 
-        if School.query.filter_by(slug=requested_slug).first():
-            flash('That web address is already taken. Please choose another.', 'error')
-            return render_template('register_school.html')
-
         if User.query.filter_by(email=principal_email).first():
             flash('That email is already registered.', 'error')
             return render_template('register_school.html')
+
+        # The web address is built from the school name (and made unique if
+        # another school already has the same name).
+        requested_slug = generate_unique_school_slug(None, school_name)
 
         school = School(name=school_name, slug=requested_slug, primary_color='#2563EB',
                         status='pending', learning_mode=learning_mode)
@@ -1299,7 +1307,8 @@ def register_school():
 
         session['user_id'] = principal.id
         session['role'] = principal.role
-        flash(f"Thanks, {principal.name}! {school.name}'s application has been submitted for review.", 'success')
+        flash(f"Thanks, {principal.name}! {school.name}'s application has been submitted for review. "
+              f"Your school web address is /school/{school.slug} — keep it, you will need it if you ever reset your password.", 'success')
         return redirect(url_for('school_pending', slug=school.slug))
 
     return render_template('register_school.html')
@@ -1511,10 +1520,33 @@ def principal_dashboard(slug):
     pending_teacher_count = User.query.filter_by(school_id=school.id, role='teacher', status='pending').count()
     pending_reset_count = PasswordResetRequest.query.filter_by(
         school_id=school.id, approver_role='principal', status='pending').count()
-    if pending_teacher_count or pending_reset_count:
-        flash(f'Waiting for you: {pending_teacher_count} teacher application(s) and '
-              f'{pending_reset_count} password reset request(s). '
-              f'Open /school/{school.slug}/approvals to review them.', 'info')
+
+    # Attendance across every class/course of this school
+    attendance_rate = None
+    att_base = db.session.query(Attendance).join(Course, Attendance.course_id == Course.id) \
+        .filter(Course.school_id == school.id)
+    att_total = att_base.count()
+    if att_total:
+        att_present = att_base.filter(Attendance.status == 'present').count()
+        attendance_rate = round(att_present / att_total * 100, 1)
+
+    # Per class-level breakdown (only meaningful for schools that use classes)
+    level_rows = []
+    if school_uses_classes(school):
+        for lvl in ClassLevel.query.filter_by(school_id=school.id).order_by(ClassLevel.position, ClassLevel.name).all():
+            class_ids = [r[0] for r in db.session.query(Course.id).filter(Course.class_level_id == lvl.id).all()]
+            enrolled = Enrollment.query.filter(Enrollment.course_id.in_(class_ids)).count() if class_ids else 0
+            level_rows.append({'name': lvl.name, 'classes': len(class_ids), 'enrollments': enrolled})
+
+    chart_data = {
+        'growth': {'labels': month_labels, 'values': month_counts},
+        'classes': [{'label': r['title'], 'value': r['enrolled_count'],
+                     'sub': f"{r['avg_progress']}% average progress"} for r in course_rows[:8]],
+        'people': {'teachers': teacher_count, 'students': student_count},
+        'levels': [{'label': r['name'], 'value': r['enrollments'],
+                    'sub': f"{r['classes']} class{'' if r['classes'] == 1 else 'es'}"} for r in level_rows],
+        'uses_classes': school_uses_classes(school),
+    }
 
     return render_template('principal_dashboard.html', school=school, active_tab=active_tab,
                            teacher_count=teacher_count, student_count=student_count,
@@ -1523,7 +1555,9 @@ def principal_dashboard(slug):
                            school_avg_progress=school_avg_progress,
                            month_labels=month_labels, month_counts=month_counts,
                            pending_teacher_count=pending_teacher_count,
-                           pending_reset_count=pending_reset_count)
+                           pending_reset_count=pending_reset_count,
+                           attendance_rate=attendance_rate, level_rows=level_rows,
+                           chart_data=chart_data)
 
 
 @app.route('/school/<slug>/members/add', methods=['POST'])
@@ -2469,7 +2503,8 @@ def forgot_password_verify():
         return fail()
 
     if role == 'principal':
-        slug_input = (request.form.get('school_slug') or '').strip().lower()
+        # Accept "greenwood-high", "/school/greenwood-high" or a full link.
+        slug_input = (request.form.get('school_slug') or '').strip().lower().rstrip('/').split('/')[-1]
         if not user.school or user.school.status != 'approved' or user.school.slug != slug_input:
             return fail()
 
@@ -3295,7 +3330,17 @@ def admin_schools():
     denied_schools = [s for s in schools_list if s.status == 'denied']
     pending_resets = PasswordResetRequest.query.filter_by(approver_role='admin', status='pending') \
         .order_by(PasswordResetRequest.created_at).all()
+
+    # Read-only roster of every school, grouped by school and by role.
+    members_by_school = {}
+    roster = User.query.filter(User.school_id.isnot(None), User.role.in_(['teacher', 'student'])) \
+        .order_by(User.name).all()
+    for m in roster:
+        bucket = members_by_school.setdefault(m.school_id, {'teachers': [], 'students': []})
+        bucket['teachers' if m.role == 'teacher' else 'students'].append(m)
+
     return render_template('admin_schools.html', schools=schools_list,
+                           members_by_school=members_by_school,
                            pending_count=len(pending_schools),
                            pending_schools=pending_schools,
                            approved_schools=approved_list,
