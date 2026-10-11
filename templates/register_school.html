@@ -24,14 +24,14 @@
         <form method="POST">
           <div class="form-group">
             <label class="form-label">School Name</label>
-            <input type="text" name="school_name" class="form-control" placeholder="e.g. Greenwood High School" required>
+            <input type="text" name="school_name" id="schoolName" class="form-control" placeholder="e.g. Greenwood High School" required>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">School Web Address</label>
-            <input type="text" name="school_slug" id="schoolSlug" class="form-control" placeholder="greenwood-high"
-                   pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only" required>
-            <div class="form-hint">Your school's unique link: learntogether.app/school/<span id="slugPreview">your-school</span></div>
+          <div class="form-group" style="margin-top:-8px">
+            <div class="form-hint" style="font-size:13px">
+              Your school web address is created for you from the school name:
+              <strong>learntogether.app/school/<span id="slugPreview">your-school-name</span></strong>
+            </div>
           </div>
 
           <div class="form-group">
@@ -108,11 +108,12 @@
 </div>
 
 <script>
-  const slugInput = document.getElementById('schoolSlug');
+  // Live preview of the web address the system will generate from the school name.
+  const nameInput = document.getElementById('schoolName');
   const slugPreview = document.getElementById('slugPreview');
-  slugInput.addEventListener('input', () => {
-    const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-    slugPreview.textContent = clean || 'your-school';
+  nameInput.addEventListener('input', () => {
+    const slug = nameInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    slugPreview.textContent = slug || 'your-school-name';
   });
 
   const radios = document.querySelectorAll('input[name="learning_mode"]');
