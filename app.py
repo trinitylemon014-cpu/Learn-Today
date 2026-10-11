@@ -842,6 +842,35 @@ COMMON_SUBJECTS = [
 ]
 
 
+def notify_principal(school_id, title, body, link=None, actor=None):
+    """Tell a school's principal that something happened in their school.
+
+    Adds the notification to the current database session, so it is saved by the
+    commit of the action that caused it (call commit yourself if that action has
+    already committed). It never raises: a notification problem must not break
+    the action that triggered it. Nothing is sent when the principal is the one
+    who did it.
+    """
+    try:
+        if not school_id:
+            return
+        school = db.session.get(School, school_id)
+        if not school or not school.principal_id:
+            return
+        if actor is not None and getattr(actor, 'id', None) == school.principal_id:
+            return
+        db.session.add(Notification(
+            user_id=school.principal_id,
+            sender_id=getattr(actor, 'id', None),
+            title=(title or '')[:200],
+            body=body or title or '',
+            link=(link or '')[:300] or None,
+            kind='school_activity',
+        ))
+    except Exception:
+        app.logger.exception('Could not queue principal notification')
+
+
 def school_uses_classes(school):
     return bool(school and (school.learning_mode or 'courses') == 'classes')
 
@@ -1148,6 +1177,10 @@ def setup_password():
             flash('Password must be at least 8 characters long.', 'error')
             return render_template('setup_password.html', email=email)
         user.password = hash_password(password)
+        if user.school_id and user.role in ('teacher', 'student'):
+            notify_principal(user.school_id, 'Account activated',
+                             f'{user.name} ({user.role}) set a password and can now use {user.school.name if user.school else "your school"}.',
+                             actor=user)
         db.session.commit()
         flash('Your password has been set. You may now log in.', 'success')
         return redirect(url_for('login'))
@@ -1258,6 +1291,10 @@ def register():
                 db.session.commit()
 
         if role == 'teacher':
+            notify_principal(school.id, 'New teacher application',
+                             f'{name} applied to teach {subjects_taught} at {school.name}. Review it on the Approvals page.',
+                             url_for('principal_approvals', slug=school.slug))
+            db.session.commit()
             flash(f'Your application was sent to the principal of {school.name}. You can set your password once they approve it.', 'success')
         else:
             flash('Your application has been submitted. An admin will review it shortly.', 'success')
@@ -1563,6 +1600,9 @@ def principal_dashboard(slug):
         'uses_classes': school_uses_classes(school),
     }
 
+    school_activity = Notification.query.filter_by(user_id=user.id, kind='school_activity') \
+        .order_by(Notification.created_at.desc()).limit(10).all()
+
     return render_template('principal_dashboard.html', school=school, active_tab=active_tab,
                            teacher_count=teacher_count, student_count=student_count,
                            course_count=course_count, members=members,
@@ -1572,7 +1612,7 @@ def principal_dashboard(slug):
                            pending_teacher_count=pending_teacher_count,
                            pending_reset_count=pending_reset_count,
                            attendance_rate=attendance_rate, level_rows=level_rows,
-                           chart_data=chart_data)
+                           chart_data=chart_data, school_activity=school_activity)
 
 
 @app.route('/school/<slug>/members/add', methods=['POST'])
@@ -1973,6 +2013,9 @@ def create_course():
         db.session.add(group)
         gm = GroupMember(group_id=group.id, user_id=user.id, role='admin')
         db.session.add(gm)
+        notify_principal(user.school_id, 'New course created',
+                         f'{user.name} created the course "{title}".',
+                         url_for('course_detail', course_id=course.id), actor=user)
         db.session.commit()
         flash('Course created!', 'success')
         return redirect(url_for('course_detail', course_id=course.id))
@@ -2020,6 +2063,9 @@ def create_class():
         db.session.add(group)
         db.session.flush()
         db.session.add(GroupMember(group_id=group.id, user_id=user.id, role='admin'))
+        notify_principal(school.id, 'New class created',
+                         f'{user.name} created the class "{title}".',
+                         url_for('course_detail', course_id=course.id), actor=user)
         db.session.commit()
         flash(f'{title} was created.', 'success')
         return redirect(url_for('course_detail', course_id=course.id))
@@ -2065,6 +2111,9 @@ def edit_course(course_id):
             course.thumbnail = saved_thumbnail
         elif thumbnail:
             course.thumbnail = thumbnail
+        notify_principal(course.school_id, 'Course updated',
+                         f'{user.name} updated "{course.title}".',
+                         url_for('course_detail', course_id=course.id), actor=user)
         db.session.commit()
         flash('Course updated successfully.', 'success')
         return redirect(url_for('course_detail', course_id=course.id))
@@ -2088,7 +2137,11 @@ def delete_course(course_id):
     try:
         # Removes the course and everything attached to it (groups, messages,
         # lessons, attendance, progress, content files...).
+        course_title, course_school_id = course.title, course.school_id
         _delete_courses([course.id])
+        notify_principal(course_school_id, 'Course deleted',
+                         f'{user.name} deleted "{course_title}" together with its content and student records.',
+                         actor=user)
         db.session.commit()
     except Exception as exc:
         db.session.rollback()
@@ -2112,6 +2165,11 @@ def enroll_course(course_id):
         group = Group.query.filter_by(course_id=course_id).first()
         if group and not GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first():
             db.session.add(GroupMember(group_id=group.id, user_id=user.id, role='member'))
+        enrolled_course = db.session.get(Course, course_id)
+        if enrolled_course:
+            notify_principal(enrolled_course.school_id, 'New enrolment',
+                             f'{user.name} joined "{enrolled_course.title}".',
+                             url_for('course_detail', course_id=course_id), actor=user)
         db.session.commit()
         flash('Enrolled successfully!', 'success')
     return redirect(url_for('course_detail', course_id=course_id))
@@ -2196,6 +2254,10 @@ def schedule_lesson(course_id):
                     message=msg_text,
                 ))
 
+        when = scheduled_dt.strftime('%d %b %Y, %I:%M %p') if scheduled_dt else 'time to be announced'
+        notify_principal(course.school_id, 'Live lesson scheduled',
+                         f'{user.name} scheduled the live lesson "{title}" for {course.title} — {when}.',
+                         url_for('course_detail', course_id=course.id), actor=user)
         db.session.commit()
         flash('Lesson scheduled successfully.', 'success')
         return redirect(url_for('course_detail', course_id=course.id))
@@ -2210,6 +2272,9 @@ def delete_scheduled_lesson(course_id, lesson_id):
     if not user or (user.role != 'teacher' and user.role != 'admin'):
         flash('Access denied.', 'error')
         return redirect(url_for('course_detail', course_id=course_id))
+    notify_principal(lesson.school_id, 'Live lesson removed',
+                     f'{user.name} removed the live lesson "{lesson.title}"'
+                     f'{" from " + lesson.course.title if lesson.course else ""}.', actor=user)
     db.session.delete(lesson)
     db.session.commit()
     flash('Lesson removed.', 'success')
@@ -2224,6 +2289,9 @@ def toggle_scheduled_lesson(course_id, lesson_id):
         flash('Access denied.', 'error')
         return redirect(url_for('course_detail', course_id=course_id))
     lesson.is_active = not lesson.is_active
+    notify_principal(lesson.school_id, 'Live lesson ' + ('shown' if lesson.is_active else 'hidden'),
+                     f'{user.name} {"made visible" if lesson.is_active else "hid"} the live lesson "{lesson.title}".',
+                     url_for('course_detail', course_id=course_id), actor=user)
     db.session.commit()
     flash('Lesson visibility updated.', 'success')
     return redirect(url_for('course_detail', course_id=course_id))
@@ -2268,6 +2336,9 @@ def add_content(course_id):
         content = CourseContent(course_id=course_id, title=title, content_type=content_type,
                                 content_url=content_url, body=body, order=order)
         db.session.add(content)
+        notify_principal(course.school_id, 'New lesson material uploaded',
+                         f'{user.name} added the {content_type} "{title}" to {course.title}.',
+                         url_for('course_detail', course_id=course_id), actor=user)
         db.session.commit()
         flash('Content added!', 'success')
         return redirect(url_for('course_detail', course_id=course_id))
@@ -2307,6 +2378,9 @@ def delete_content(content_id):
     # Only delete files that live in our Supabase bucket; leave arbitrary
     # remote URLs (e.g. YouTube links) alone.
     delete_supabase_file(content.content_url)
+    notify_principal(course.school_id, 'Lesson material removed',
+                     f'{user.name} removed "{content.title}" from {course.title}.',
+                     url_for('course_detail', course_id=course.id), actor=user)
     db.session.delete(content)
     db.session.commit()
     flash('Module removed successfully.', 'success')
@@ -2340,6 +2414,9 @@ def create_group():
         db.session.add(group)
         db.session.flush()
         db.session.add(GroupMember(group_id=group.id, user_id=user.id, role='admin'))
+        notify_principal(user.school_id, 'New group created',
+                         f'{user.name} created the group "{name}".',
+                         url_for('group_detail', group_id=group.id), actor=user)
         db.session.commit()
         flash('Group created!', 'success')
         return redirect(url_for('group_detail', group_id=group.id))
@@ -2598,6 +2675,10 @@ def forgot_password_verify():
                 status='pending',
             )
             db.session.add(req)
+            if role in ('teacher', 'student') and user.school:
+                notify_principal(user.school_id, 'Password reset request',
+                                 f'{user.name} ({role}) passed the security questions and is waiting for your approval to reset their password.',
+                                 url_for('principal_approvals', slug=user.school.slug))
         db.session.commit()
         return redirect(url_for('reset_status', token=req.token))
 
@@ -3132,6 +3213,9 @@ def create_session(course_id):
     for e in Enrollment.query.filter_by(course_id=course_id).all():
         db.session.add(Attendance(student_id=e.student_id, course_id=course_id,
                                   session_id=att_session.id, status='absent'))
+    notify_principal(course.school_id, 'Attendance session opened',
+                     f'{user.name} opened the attendance session "{session_name}" for {course.title}.',
+                     url_for('attendance', course_id=course_id), actor=user)
     db.session.commit()
     flash('Session created!', 'success')
     return redirect(url_for('attendance', course_id=course_id))
@@ -3324,6 +3408,9 @@ def delete_user(user_id):
             elif role == 'admin':
                 reassign_to = user.id
                 SiteMedia.query.filter_by(uploaded_by=u.id).update({'uploaded_by': user.id}, synchronize_session=False)
+            if role in ('teacher', 'student') and school_id:
+                notify_principal(school_id, 'Account removed by the platform admin',
+                                 f'The platform admin deleted the {role} account of {name}.', actor=user)
             _delete_users([u.id], reassign_to=reassign_to)
             db.session.commit()
             flash(f'{name} was deleted.', 'success')
@@ -3375,10 +3462,15 @@ def review_school(school_id):
 
     if action == 'deny':
         school.status = 'denied'
+        notify_principal(school.id, 'School registration denied',
+                         f'The platform admin denied the registration of {school.name}.', actor=user)
         db.session.commit()
         flash(f'{school.name} was denied.', 'info')
     else:
         school.status = 'approved'
+        notify_principal(school.id, 'School approved',
+                         f'{school.name} was approved and is now live on the platform. You can now add teachers and students.',
+                         url_for('principal_dashboard', slug=school.slug), actor=user)
         db.session.commit()
         flash(f'{school.name} was approved and is now live on the platform.', 'success')
 
