@@ -49,14 +49,14 @@
 
     <div class="auth-image-wrapper">
       {% if login_media %}
-        <img src="{{ url_for('static', filename=login_media.file_path) }}" alt="Learn Together Platform" class="auth-image">
+        <img src="{{ media_url(login_media.file_path) }}" alt="{{ login_media.title or 'Learn Together Platform' }}" class="auth-image">
       {% else %}
         <img src="{{ url_for('static', filename='videos/lms.avif') }}" alt="Learn Together Platform" class="auth-image">
       {% endif %}
       <div class="auth-image-overlay">
         <div class="auth-image-text">
-          <h3>Ready to grow?</h3>
-          <p>Join thousands of students and teachers learning together</p>
+          <h3>{{ login_media.title if login_media and login_media.title else 'Ready to grow?' }}</h3>
+          <p>{{ login_media.description if login_media and login_media.description else 'Join thousands of students and teachers learning together' }}</p>
         </div>
       </div>
     </div>
