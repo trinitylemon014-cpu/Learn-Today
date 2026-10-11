@@ -752,6 +752,21 @@ def message_is_visible(message, user_id):
 
 
 @app.context_processor
+def media_aware_url_for():
+    """Uploaded media (login/signup images, logos, avatars...) are stored as full
+    Supabase URLs. Templates that call url_for('static', filename=<that URL>)
+    would otherwise produce a broken '/static/https://...' link, so a full URL
+    is returned untouched."""
+    def url_for_with_media(endpoint, **values):
+        if endpoint == 'static':
+            filename = values.get('filename')
+            if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
+                return filename
+        return url_for(endpoint, **values)
+    return {'url_for': url_for_with_media}
+
+
+@app.context_processor
 def inject_user():
     user = get_current_user()
     unread_count = 0
@@ -3435,83 +3450,146 @@ def admin_media():
     landing_videos = SiteMedia.query.filter_by(media_type='landing_video').all()
     return render_template('admin_media.html', media=media, login_images=login_images, signup_images=signup_images, landing_videos=landing_videos)
 
+MAX_MEDIA_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_MEDIA_VIDEO_BYTES = 100 * 1024 * 1024
+MEDIA_PAGE_LABELS = {
+    'login_image': 'login and password-setup pages',
+    'signup_image': 'sign-up page',
+    'landing_video': 'landing page',
+}
+
+
+def _wants_json():
+    return (request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or request.accept_mimetypes.best == 'application/json')
+
+
+def _media_result(ok, message, status=None, **extra):
+    """Plain form posts get a redirect + flash message; AJAX callers get JSON."""
+    if _wants_json():
+        body = {'success': ok}
+        body['message' if ok else 'error'] = message
+        body.update(extra)
+        return jsonify(body), (status or (200 if ok else 400))
+    flash(message, 'success' if ok else 'error')
+    return redirect(url_for('admin_media'))
+
+
 @app.route('/admin/media/upload', methods=['POST'])
 def admin_media_upload():
     user = get_current_user()
     if not user or user.role != 'admin':
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    
+        if _wants_json():
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
     media_type = request.form.get('media_type')
-    if not media_type or media_type not in ['login_image', 'signup_image', 'landing_video']:
-        return jsonify({'success': False, 'error': 'Invalid media type'}), 400
-    
+    if media_type not in MEDIA_PAGE_LABELS:
+        return _media_result(False, 'Invalid media type.')
+
     file = request.files.get('file')
     if not file or not file.filename:
-        return jsonify({'success': False, 'error': 'No file provided'}), 400
-    
-    # Determine allowed extensions based on media type
+        return _media_result(False, 'Please choose a file to upload.')
+
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
+    if len(title) > 200:
+        return _media_result(False, f'The title is {len(title)} characters long; the limit is 200. '
+                                    'Put longer text in the caption field instead.')
+    if len(description) > 2000:
+        return _media_result(False, f'The caption is {len(description)} characters long; the limit is 2000.')
+
     if media_type == 'landing_video':
-        allowed_extensions = {'mp4', 'webm', 'mov', 'avi'}
+        allowed_extensions, limit, kind = {'mp4', 'webm', 'mov', 'avi'}, MAX_MEDIA_VIDEO_BYTES, 'video'
     else:
-        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
-    
-    # Save file
-    subfolder = 'site_media'
-    saved_path = save_uploaded_file(file, subfolder, allowed_extensions)
-    
+        allowed_extensions, limit, kind = ALLOWED_IMAGE_EXTENSIONS, MAX_MEDIA_IMAGE_BYTES, 'image'
+    if not allowed_file(file.filename, allowed_extensions):
+        return _media_result(False, 'That file type is not allowed. Use: ' +
+                             ', '.join(sorted(e.upper() for e in allowed_extensions)) + '.')
+
+    file.stream.seek(0, os.SEEK_END)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size > limit:
+        return _media_result(False, f'That {kind} is {size / 1048576:.1f} MB; the limit is {limit // 1048576} MB.')
+
+    try:
+        saved_path = save_uploaded_file(file, 'site_media', allowed_extensions)
+    except Exception as exc:
+        app.logger.exception('Site media upload to storage failed')
+        return _media_result(False, f'The file could not be saved to storage: {exc}', 502)
     if not saved_path:
-        return jsonify({'success': False, 'error': 'File upload failed'}), 400
-    
-    # Deactivate previous media of this type
-    SiteMedia.query.filter_by(media_type=media_type, is_active=True).update({'is_active': False})
-    
-    # Create new media record
-    media = SiteMedia(
-        media_type=media_type,
-        file_path=saved_path,
-        title=request.form.get('title', ''),
-        description=request.form.get('description', ''),
-        is_active=True,
-        uploaded_by=user.id
-    )
-    db.session.add(media)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'media_id': media.id, 'file_path': saved_path})
+        return _media_result(False, 'The file was empty or could not be read.')
+
+    try:
+        # The new upload replaces the one currently shown on that page.
+        SiteMedia.query.filter_by(media_type=media_type, is_active=True).update(
+            {'is_active': False}, synchronize_session=False)
+        media = SiteMedia(
+            media_type=media_type,
+            file_path=saved_path,
+            title=title,
+            description=description,
+            is_active=True,
+            uploaded_by=user.id,
+        )
+        db.session.add(media)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_supabase_file(saved_path)
+        app.logger.exception('Saving site media record failed')
+        return _media_result(False, f'The file was uploaded but could not be saved: {exc}', 500)
+
+    return _media_result(True, f'Uploaded. It is now live on the {MEDIA_PAGE_LABELS[media_type]}.',
+                         media_id=media.id, file_path=saved_path)
+
 
 @app.route('/admin/media/<int:media_id>/delete', methods=['POST'])
 def admin_media_delete(media_id):
     user = get_current_user()
     if not user or user.role != 'admin':
         flash('Access denied.', 'error')
-        return redirect(url_for('admin_media'))
-    
+        return redirect(url_for('dashboard'))
+
     media = SiteMedia.query.get_or_404(media_id)
-    
-    delete_supabase_file(media.file_path)
-    
-    db.session.delete(media)
-    db.session.commit()
-    flash(f'Media "{media.title or "Untitled"}" deleted.', 'success')
-    return redirect(url_for('admin_media'))
+    label = media.title or 'Untitled'      # read BEFORE the row is deleted
+    file_path = media.file_path
+    try:
+        db.session.delete(media)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Site media delete failed')
+        return _media_result(False, f'Could not delete "{label}": {exc}', 500)
+
+    delete_supabase_file(file_path)
+    return _media_result(True, f'"{label}" was deleted.')
+
 
 @app.route('/admin/media/<int:media_id>/activate', methods=['POST'])
 def admin_media_activate(media_id):
     user = get_current_user()
     if not user or user.role != 'admin':
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    
+        if _wants_json():
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+
     media = SiteMedia.query.get_or_404(media_id)
     media_type = media.media_type
-    
-    # Deactivate other media of same type
-    SiteMedia.query.filter_by(media_type=media_type, is_active=True).update({'is_active': False})
-    
-    # Activate this one
-    media.is_active = True
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': f'{media_type.replace("_", " ").title()} activated'})
+    try:
+        SiteMedia.query.filter_by(media_type=media_type, is_active=True).update(
+            {'is_active': False}, synchronize_session=False)
+        media.is_active = True
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Site media activation failed')
+        return _media_result(False, f'Could not activate it: {exc}', 500)
+
+    return _media_result(True, f'Done. It is now live on the {MEDIA_PAGE_LABELS.get(media_type, "site")}.')
 
 # ─── ADMIN APPLICATIONS ────────────────────────────────────────────────────────
 @app.route('/admin/applications')
