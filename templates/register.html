@@ -105,10 +105,29 @@
             <div class="form-hint">Link your account to a parent who can monitor your progress</div>
           </div>
 
-          <div class="form-group" id="teacherCvField" style="display:none">
-            <label class="form-label">Teacher CV</label>
-            <input type="file" name="cv_file" class="form-control">
-            <div class="form-hint">Upload your CV so the admin can review your application</div>
+          <div id="teacherFields" style="display:none">
+            <div class="form-group">
+              <label class="form-label">Your School</label>
+              <select name="school_id" id="schoolSelect" class="form-control">
+                <option value="">Choose your school…</option>
+                {% for s in schools %}
+                  <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-hint">Your school's principal approves your application. Only approved schools are listed.</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Subjects You Teach</label>
+              <input type="text" name="subjects_taught" id="subjectsInput" class="form-control" placeholder="Mathematics, Physics">
+              <div class="form-hint">Separate subjects with commas. You will need this to recover your password.</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Teacher CV</label>
+              <input type="file" name="cv_file" class="form-control">
+              <div class="form-hint">Upload your CV so your principal can review your application</div>
+            </div>
           </div>
 
           <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:12px;font-weight:600">
@@ -124,14 +143,14 @@
 
     <div class="auth-image-wrapper">
       {% if signup_media %}
-        <img src="{{ url_for('static', filename=signup_media.file_path) }}" alt="Learn Together" class="auth-image">
+        <img src="{{ media_url(signup_media.file_path) }}" alt="{{ signup_media.title or 'Learn Together' }}" class="auth-image">
       {% else %}
         <img src="{{ url_for('static', filename='videos/kk.jpg') }}" alt="Learn Together" class="auth-image">
       {% endif %}
       <div class="auth-image-overlay">
         <div class="auth-image-text">
-          <h3>Start with confidence</h3>
-          <p>Build learning pathways, connect with peers, and manage progress in one unified platform.</p>
+          <h3>{{ signup_media.title if signup_media and signup_media.title else 'Start with confidence' }}</h3>
+          <p>{{ signup_media.description if signup_media and signup_media.description else 'Build learning pathways, connect with peers, and manage progress in one unified platform.' }}</p>
         </div>
       </div>
     </div>
@@ -149,7 +168,9 @@ function selectRole(el) {
   document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
   document.getElementById('studentSchoolField').style.display = role === 'student' ? 'block' : 'none';
   document.getElementById('studentCoursesField').style.display = role === 'student' ? 'block' : 'none';
-  document.getElementById('teacherCvField').style.display = role === 'teacher' ? 'block' : 'none';
+  document.getElementById('teacherFields').style.display = role === 'teacher' ? 'block' : 'none';
+  document.getElementById('schoolSelect').required = role === 'teacher';
+  document.getElementById('subjectsInput').required = role === 'teacher';
 }
 </script>
 {% endblock %}
