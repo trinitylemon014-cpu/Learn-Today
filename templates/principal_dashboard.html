@@ -116,6 +116,29 @@
   {% endif %}
 </div>
 
+<!-- Recent activity -->
+<div class="pd-card" style="margin-bottom:24px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3>Recent activity in your school</h3>
+      <div class="pd-sub">New lessons, live sessions, uploads, enrolments and changes. You also get a notification for each one.</div>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('notifications') }}">All notifications</a>
+  </div>
+  {% for n in school_activity %}
+    <a href="{{ n.link or url_for('notifications') }}" style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #f1f5f9;text-decoration:none;color:inherit">
+      <span style="width:8px;height:8px;border-radius:50%;margin-top:7px;flex-shrink:0;background:{{ '#e5e7eb' if n.is_read else 'var(--blue,#2563eb)' }}"></span>
+      <span style="flex:1">
+        <strong style="font-size:14px">{{ n.title }}</strong><br>
+        <span style="font-size:13px;color:#6b7280">{{ n.body }}</span>
+      </span>
+      <span style="font-size:12px;color:#9ca3af;white-space:nowrap">{{ n.created_at.strftime('%d %b, %H:%M') if n.created_at else '' }}</span>
+    </a>
+  {% else %}
+    <div class="pd-empty">Nothing yet. When teachers or students do something in your school, it will show up here.</div>
+  {% endfor %}
+</div>
+
 <!-- People -->
 <div class="pd-grid-2" style="align-items:start">
   <div class="pd-card" style="grid-column:span 1">
